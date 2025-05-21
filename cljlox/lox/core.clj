@@ -17,12 +17,11 @@
 (defn -main [& args]
   (try
     (let [arglen (count args)]
-      (cond (> arglen 1)
-            (println "Usage: cljlox [script]")
-            (= arglen 1)
-            (run-file (first args))
-            :else
-            (run-prompt)))
+      (cond
+        (> arglen 1) (println "Usage: cljlox [script]")
+        (= arglen 1) (run-file (first args))
+        :else
+        (run-prompt)))
     (catch Exception e
       (println  (format "Fatal error: %s" (ex-message e))))))
 
