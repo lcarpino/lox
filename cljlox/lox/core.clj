@@ -1,8 +1,9 @@
 (ns lox.core
-  (:gen-class))
+  (:require [lox.scanner :as scanner]))
 
 (defn- run [source]
-  source)
+  (doseq [tokens (::tokens (scanner/scan source))]
+    (println tokens)))
 
 (defn- run-file [& args])
 
