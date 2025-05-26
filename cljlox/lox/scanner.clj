@@ -1,5 +1,22 @@
 (ns lox.scanner)
 
+(def keywords {"and" :token/and
+               "class" :token/class
+               "else" :token/else
+               "false" :token/false
+               "for" :token/for
+               "fun" :token/fun
+               "if" :token/if
+               "nil" :token/nil
+               "or" :token/or
+               "print" :token/print
+               "return" :token/return
+               "super" :token/super
+               "this" :token/this
+               "true" :token/true
+               "var" :token/var
+               "while" :token/while})
+
 (defn- at-end? [scanner]
   (>= (::current scanner) (count (::source scanner))))
 
@@ -12,8 +29,8 @@
 (defn- current-lexeme [scanner]
   (subs (::source scanner) (::start scanner) (::current scanner)))
 
-(defn- peek [scanner]
-  ())
+;; (defn- peek [scanner]
+;;   ())
 
 (defn- peek-next [scanner]
   (let [next (inc (::current scanner))
@@ -25,11 +42,13 @@
   ([scanner token-type]
    (add-token scanner token-type nil))
   ([scanner token-type literal]
-   (do (println scanner)
-       (update scanner ::tokens conj {::type token-type
-                                      ::lexeme (current-lexeme scanner)
-                                      ::literal literal
-                                      ::line (::line scanner)}))))
+   (update scanner ::tokens conj {::type token-type
+                                  ::lexeme (current-lexeme scanner)
+                                  ::literal literal
+                                  ::line (::line scanner)})))
+
+(defn- add-error [scanner message]
+  (update scanner ::errors conj {::line scanner ::message message}))
 
 (defn- match [scanner expected]
   (and (not (at-end? scanner)) (= (current-character scanner) expected)))
@@ -47,18 +66,32 @@
 (defn- alpha-numeric? [character]
   (or (digit? character) (alpha? character)))
 
-(defn- skip-comment [scanner] ())
+(defn- skip-comment [scanner]
+  (if (or (at-end? scanner) (= (current-character scanner) \newline))
+    scanner
+    (recur (advance scanner))))
 
-(defn- identifier [scanner] ())
+(defn- add-identifier [scanner]
+  (if (or (at-end? scanner) (not (alpha-numeric? (current-character scanner))))
+    (add-token scanner (get keywords (current-lexeme scanner) :token/identifier))
+    (recur (advance scanner))))
 
-(defn- number [scanner]
+(defn- add-number [scanner]
   (if (or (at-end? scanner) (not (digit? (current-character scanner))))
     (if (and (match scanner \.) (digit? (peek-next scanner)))
       (recur (advance scanner))
-      scanner)
-  (recur (advance scanner))))
+      (add-token scanner :token/number (Double/parseDouble (current-lexeme scanner))))
+    (recur (advance scanner))))
 
-(defn- string [scanner] ())
+(defn- add-string [scanner]
+  (if (at-end? scanner)
+    (add-error scanner "Unterminated string.")
+    (if (match scanner \")
+      (let [scanner (advance scanner)]
+        (add-token scanner :token/string (subs (::source scanner) (inc (::start scanner)) (dec (::current scanner)))))
+      (recur (advance (if (= (current-character scanner) \newline)
+                        (update scanner ::line inc)
+                        scanner))))))
 
 (defn- scan-token [scanner]
   (let [character (current-character scanner)
@@ -91,12 +124,12 @@
            (add-token scanner :token/slash))
       (\return \space \tab) scanner
       \newline (update scanner ::line inc)
-      \" (add-token scanner :token/string (string scanner))
+      \" (add-string scanner)
 
       (cond
-        (alpha? character) (add-token scanner :token/identifier)
-        (digit? character) (let [scanner (number scanner)] (add-token scanner :token/number (Double/parseDouble (current-lexeme scanner))))
-        :else ()))))
+        (alpha? character) (add-identifier scanner)
+        (digit? character) (add-number scanner)
+        :else (add-error scanner "Unexpected character.")))))
 
 (defn- next-token [scanner]
   (assoc scanner ::start (::current scanner)))

@@ -2,8 +2,9 @@
   (:require [lox.scanner :as scanner]))
 
 (defn- run [source]
-  (doseq [tokens (::tokens (scanner/scan source))]
-    (println tokens)))
+  (let [[tokens errors] (scanner/scan source)]
+    (doseq [token tokens]
+      (println token))))
 
 (defn- run-file [& args])
 
@@ -12,7 +13,7 @@
     (print "> ")
     (flush)
     (when-some [line (read-line)]
-      (println (run line))
+      (run line)
       (recur))))
 
 (defn -main [& args]
