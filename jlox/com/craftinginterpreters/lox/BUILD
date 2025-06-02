@@ -11,11 +11,11 @@ java_library(
 java_binary(
     name = "lox",
     srcs = [
-        "Expr.java",
         "Lox.java",
         "TokenType.java",
         "Token.java",
         "Scanner.java",
+        "//jlox/com/craftinginterpreters/tool:generate_ast_srcs",
     ],
     main_class = "com.craftinginterpreters.lox.Lox",
     visibility = ["//visibility:public"],
@@ -25,7 +25,7 @@ java_binary(
     name = "ast",
     srcs = [
         "AstPrinter.java",
-        "Expr.java",
+        "//jlox/com/craftinginterpreters/tool:generate_ast_srcs",
     ],
     deps = [
         ":token",
