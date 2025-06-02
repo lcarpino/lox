@@ -11,8 +11,10 @@ java_library(
 java_binary(
     name = "lox",
     srcs = [
+        "Interpreter.java",
         "Lox.java",
         "Parser.java",
+        "RuntimeError.java",
         "Scanner.java",
         "TokenType.java",
         "Token.java",
