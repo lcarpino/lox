@@ -12,9 +12,10 @@ java_binary(
     name = "lox",
     srcs = [
         "Lox.java",
+        "Parser.java",
+        "Scanner.java",
         "TokenType.java",
         "Token.java",
-        "Scanner.java",
         "//jlox/com/craftinginterpreters/tool:generate_ast_srcs",
     ],
     main_class = "com.craftinginterpreters.lox.Lox",
