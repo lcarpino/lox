@@ -26,4 +26,3 @@
         (run-prompt)))
     (catch Exception e
       (println  (format "Fatal error: %s" (ex-message e))))))
-
