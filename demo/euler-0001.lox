@@ -1,0 +1,16 @@
+fun mod(a, b) {
+  if (a < b) return a;
+  return mod(a - b, b);
+}
+
+fun main(num) {
+  var total = 0;
+  for (var i = 0; i < num; i = i + 1) {
+    if (mod(i, 3) == 0 or mod(i, 5) == 0) {
+      total = total + i;
+    }
+  }
+  return total;
+}
+
+print main(1000);
