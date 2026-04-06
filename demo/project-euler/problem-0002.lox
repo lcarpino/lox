@@ -1,0 +1,48 @@
+fun isEven(n) {
+  if (n < 0) n = -n;
+  if (n == 0) return true;
+  if (n == 1) return false;
+
+  while (n >= 2) {
+    var remover = 2;
+    while (remover * 2 <= n) {
+      remover = remover * 2;
+    }
+    n = n - remover;
+  }
+
+  return n == 0;
+}
+
+fun fib(n) {
+  var a = 0;
+  var b = 1;
+
+  var temp = 0;
+  for (var i = 0; i < n; i = i + 1) {
+    // a, b = b, a + b
+    temp = a;
+    a = b;
+    b = temp + b;
+  }
+
+  return a;
+}
+
+fun main(num) {
+  var n = 0;
+  var fnum = fib(n);
+
+  var total = 0;
+  while (fnum < num) {
+    if (isEven(fnum)) {
+      total = total + fnum;
+    }
+    n = n + 1;
+    fnum = fib(n);
+  }
+
+  return total;
+}
+
+print main(4000000);
