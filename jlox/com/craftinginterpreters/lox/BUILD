@@ -17,6 +17,7 @@ java_binary(
         "LoxCallable.java",
         "LoxFunction.java",
         "Parser.java",
+        "Resolver.java",
         "Return.java",
         "RuntimeError.java",
         "Scanner.java",
