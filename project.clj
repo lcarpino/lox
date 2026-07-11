@@ -5,7 +5,8 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :plugins [[lein-zprint "1.3.0"]]
   :source-paths ["cljlox"]
-  :dependencies [[org.clojure/clojure "1.11.1"]]
+  :dependencies [[org.clojure/clojure "1.12.4"]
+                 [metosin/malli "0.20.1"]]
   :zprint {:old? false :width 120}
   :main ^:skip-aot lox.core
   :target-path "target/%s"

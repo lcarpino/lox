@@ -1,120 +1,134 @@
 (ns lox.scanner)
 
+(def TokenSchema [:map [:type :keyword] [:lexeme :string] [:line :int] [:literal {:optional true} :any]])
+
+(def ScannerStateSchema [:map [:chars [:sequential :char]] [:line :int]])
+
+(def ScannerOutputSchema [:sequential TokenSchema])
+
 (def keywords
-  {"and" :token/and,
-   "class" :token/class,
-   "else" :token/else,
-   "false" :token/false,
-   "for" :token/for,
-   "fun" :token/fun,
-   "if" :token/if,
-   "nil" :token/nil,
-   "or" :token/or,
-   "print" :token/print,
-   "return" :token/return,
-   "super" :token/super,
-   "this" :token/this,
-   "true" :token/true,
-   "var" :token/var,
-   "while" :token/while})
+  {"and" :and,
+   "class" :class,
+   "else" :else,
+   "false" :false,
+   "for" :for,
+   "fun" :fun,
+   "if" :if,
+   "nil" :nil,
+   "or" :or,
+   "print" :print,
+   "return" :return,
+   "super" :super,
+   "this" :this,
+   "true" :true,
+   "var" :var,
+   "while" :while})
 
-(defn- at-end? [scanner] (>= (::current scanner) (count (::source scanner))))
+(defn- digit? [c] (and c (Character/isDigit c)))
 
-(defn- advance [scanner] (update scanner ::current inc))
+(defn- alpha? [c] (and c (or (Character/isLetter c) (= c \_))))
 
-(defn- current-character [scanner] (nth (::source scanner) (::current scanner)))
+(defn- alpha-numeric? [c] (or (alpha? c) (digit? c)))
 
-(defn- current-lexeme [scanner] (subs (::source scanner) (::start scanner) (::current scanner)))
+(defn- scan-string
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  [initial-state]
+  (loop [state initial-state
+         acc []]
+    (let [c (first (:chars state))]
+      (cond (nil? c) (let [lexeme (apply str acc)]
+                       [{:type :error, :lexeme lexeme, :line (:line state), :literal "Unterminated string."}
+                        (assoc state :chars '())])
+            (= c \") (let [lexeme (apply str acc)]
+                       [{:type :string, :lexeme (str "\"" lexeme "\""), :literal lexeme, :line (:line state)}
+                        (update state :chars rest)])
+            (= c \newline) (recur (-> state
+                                      (update :chars rest)
+                                      (update :line inc))
+                                  (conj acc c))
+            :else (recur (update state :chars rest) (conj acc c))))))
 
-;; (defn- peek [scanner]
-;;   ())
+(defn- scan-number
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  [initial-state]
+  (loop [state initial-state
+         acc []]
+    (let [c (first (:chars state))]
+      (if (or (digit? c) (= c \.))
+        (recur (update state :chars rest) (conj acc c))
+        (let [lexeme (apply str acc)
+              value (Double/parseDouble lexeme)]
+          [{:type :number, :lexeme lexeme, :literal value, :line (:line state)} state])))))
 
-(defn- peek-next
-  [scanner]
-  (let [next (inc (::current scanner)) source (::source scanner)] (when (< next (count source)) (nth source next))))
+(defn- scan-identifier
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  [initial-state]
+  (loop [state initial-state
+         acc []]
+    (let [c (first (:chars state))]
+      (if (alpha-numeric? c)
+        (recur (update state :chars rest) (conj acc c))
+        (let [lexeme (apply str acc)
+              type (get keywords lexeme :identifier)]
+          [{:type type, :lexeme lexeme, :line (:line state)} state])))))
 
-(defn- add-token
-  ([scanner token-type] (add-token scanner token-type nil))
-  ([scanner token-type literal]
-   (update scanner
-           ::tokens
-           conj
-           {::type token-type, ::lexeme (current-lexeme scanner), ::literal literal, ::line (::line scanner)})))
 
-(defn- add-error [scanner message] (update scanner ::errors conj {::line scanner, ::message message}))
-
-(defn- match [scanner expected] (and (not (at-end? scanner)) (= (current-character scanner) expected)))
-
-(defn- digit? [character] (and (>= (int character) (int \0)) (<= (int character) (int \9))))
-
-(defn- alpha?
-  [character]
-  (when-let [code (int character)]
-    (or (and (>= code (int \a)) (<= code (int \z))) (and (>= code (int \A)) (<= code (int \Z))) (= character \_))))
-
-(defn- alpha-numeric? [character] (or (digit? character) (alpha? character)))
-
-(defn- skip-comment
-  [scanner]
-  (if (or (at-end? scanner) (= (current-character scanner) \newline)) scanner (recur (advance scanner))))
-
-(defn- add-identifier
-  [scanner]
-  (if (or (at-end? scanner) (not (alpha-numeric? (current-character scanner))))
-    (add-token scanner (get keywords (current-lexeme scanner) :token/identifier))
-    (recur (advance scanner))))
-
-(defn- add-number
-  [scanner]
-  (if (or (at-end? scanner) (not (digit? (current-character scanner))))
-    (if (and (match scanner \.) (digit? (peek-next scanner)))
-      (recur (advance scanner))
-      (add-token scanner :token/number (Double/parseDouble (current-lexeme scanner))))
-    (recur (advance scanner))))
-
-(defn- add-string
-  [scanner]
-  (if (at-end? scanner)
-    (add-error scanner "Unterminated string.")
-    (if (match scanner \")
-      (let [scanner (advance scanner)]
-        (add-token scanner :token/string (subs (::source scanner) (inc (::start scanner)) (dec (::current scanner)))))
-      (recur (advance (if (= (current-character scanner) \newline) (update scanner ::line inc) scanner))))))
-
-(defn- scan-token
-  [scanner]
-  (let [character (current-character scanner)
-        scanner (advance scanner)]
-    (case character
-      \( (add-token scanner :token/lparam)
-      \) (add-token scanner :token/rparam)
-      \{ (add-token scanner :token/lbrace)
-      \} (add-token scanner :token/rbrace)
-      \, (add-token scanner :token/comma)
-      \. (add-token scanner :token/dot)
-      \- (add-token scanner :token/minus)
-      \+ (add-token scanner :token/plus)
-      \; (add-token scanner :token/semicolon)
-      \* (add-token scanner :token/star)
-      \! (if (match scanner \=) (add-token (advance scanner) :token/bang-equal) (add-token scanner :token/bang))
-      \= (if (match scanner \=) (add-token (advance scanner) :token/equal-equal) (add-token scanner :token/equal))
-      \< (if (match scanner \=) (add-token (advance scanner) :token/less-equal) (add-token scanner :token/less))
-      \> (if (match scanner \=) (add-token (advance scanner) :token/greater-equal) (add-token scanner :token/greater))
-      \/ (if (match scanner \/) (skip-comment (advance scanner)) (add-token scanner :token/slash))
-      (\return \space \tab) scanner
-      \newline (update scanner ::line inc)
-      \" (add-string scanner)
-      (cond (alpha? character) (add-identifier scanner)
-            (digit? character) (add-number scanner)
-            :else (add-error scanner "Unexpected character.")))))
-
-(defn- next-token [scanner] (assoc scanner ::start (::current scanner)))
+(defn scan-token
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  [initial-state]
+  (loop [state initial-state]
+    (let [chars (:chars state)
+          line (:line state)
+          c (first chars)]
+      (if (nil? c)
+        [{:type :eof, :lexeme "", :line line} state]
+        (cond
+          ;; --- single character operators ---
+          (= c \() [{:type :lparam, :lexeme "(", :line line} (update state :chars rest)]
+          (= c \)) [{:type :rparam, :lexeme ")", :line line} (update state :chars rest)]
+          (= c \{) [{:type :lbrace, :lexeme "{", :line line} (update state :chars rest)]
+          (= c \}) [{:type :rbrace, :lexeme "}", :line line} (update state :chars rest)]
+          (= c \,) [{:type :comma, :lexeme ",", :line line} (update state :chars rest)]
+          (= c \.) [{:type :dot, :lexeme ".", :line line} (update state :chars rest)]
+          (= c \-) [{:type :minus, :lexeme "-", :line line} (update state :chars rest)]
+          (= c \+) [{:type :plus, :lexeme "+", :line line} (update state :chars rest)]
+          (= c \;) [{:type :semicolon, :lexeme ";", :line line} (update state :chars rest)]
+          (= c \*) [{:type :star, :lexeme "*", :line line} (update state :chars rest)]
+          ;; --- two character operators ---
+          (= c \!) (if (= (second chars) \=)
+                     [{:type :bang-equal, :lexeme "!=", :line line} (update state :chars #(drop 2 %))]
+                     [{:type :bang, :lexeme "!", :line line} (update state :chars rest)])
+          (= c \=) (if (= (second chars) \=)
+                     [{:type :equal-equal, :lexeme "==", :line line} (update state :chars #(drop 2 %))]
+                     [{:type :equal, :lexeme "=", :line line} (update state :chars rest)])
+          (= c \<) (if (= (second chars) \=)
+                     [{:type :less-equal, :lexeme "<=", :line line} (update state :chars #(drop 2 %))]
+                     [{:type :less, :lexeme "<", :line line} (update state :chars rest)])
+          (= c \>) (if (= (second chars) \=)
+                     [{:type :greater-equal, :lexeme ">=", :line line} (update state :chars #(drop 2 %))]
+                     [{:type :greater, :lexeme ">", :line line} (update state :chars rest)])
+          ;; --- comments ---
+          (= c \/) (if (= (second chars) \/)
+                     (let [comment-chars (take-while #(not= % \newline) chars)]
+                       (recur (update state :chars #(drop (count comment-chars) %))))
+                     [{:type :slash, :lexeme "/", :line line} (update state :chars rest)])
+          ;; --- whitespace ---
+          (contains? #{\space \return \tab} c) (recur (update state :chars rest))
+          (= c \newline) (recur (-> state
+                                    (update :chars rest)
+                                    (update :line inc)))
+          ;; --- literals ---
+          (= c \") (scan-string state)
+          (alpha? c) (scan-identifier state)
+          (digit? c) (scan-number state)
+          ;; --- fallback ---
+          :else [{:type :error, :lexeme (str c), :line line, :literal "Unexpected character."}
+                 (update state :chars rest)])))))
 
 (defn scan
+  {:malli/schema [:=> [:cat :string] ScannerOutputSchema]}
   [source]
-  (loop [scanner {::source source, ::errors [], ::start 0, ::current 0, ::line 1, ::tokens []}]
-    (if (at-end? scanner)
-      (let [scanner (add-token scanner :token/eof)] [(::tokens scanner) (::errors scanner)])
-      (recur (-> scanner
-                 (scan-token)
-                 (next-token))))))
+  (loop [state {:chars (seq source), :line 1}
+         tokens []]
+    (let [[token next-state] (scan-token state)]
+      (if (= (:type token) :eof) (conj tokens token) (recur next-state (conj tokens token))))))
