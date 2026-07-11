@@ -2,7 +2,11 @@
   (:require [lox.scanner :as scanner]
             [lox.ast :as ast]))
 
-(def ParserStateSchema [:map [:tokens [:sequential scanner/TokenSchema]]])
+(def ParserStateSchema
+  [:map
+   [:tokens [:sequential scanner/TokenSchema]]])
+
+(def ParserFnSchema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]])
 
 (declare parse-expression)
 
@@ -41,6 +45,7 @@
       (parse-primary state))))
 
 (defn- make-binary-parser
+  {:malli/schema [:=> [:cat [:set :keyword] ParserFnSchema] ParserFnSchema]}
   [operator-types next-parser-fn]
   (fn [initial-state]
     (let [[expr state-after-left] (next-parser-fn initial-state)]

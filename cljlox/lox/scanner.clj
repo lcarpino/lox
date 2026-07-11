@@ -1,28 +1,36 @@
 (ns lox.scanner)
 
-(def TokenSchema [:map [:type :keyword] [:lexeme :string] [:line :int] [:literal {:optional true} :any]])
+(def TokenSchema
+  [:map
+   [:type :keyword]
+   [:lexeme :string]
+   [:line :int]
+   [:literal {:optional true} :any]])
 
-(def ScannerStateSchema [:map [:chars [:sequential :char]] [:line :int]])
+(def ScannerStateSchema
+  [:map
+   [:chars [:sequential :char]]
+   [:line :int]])
 
 (def ScannerOutputSchema [:sequential TokenSchema])
 
 (def keywords
-  {"and" :and,
-   "class" :class,
-   "else" :else,
-   "false" :false,
-   "for" :for,
-   "fun" :fun,
-   "if" :if,
-   "nil" :nil,
-   "or" :or,
-   "print" :print,
+  {"and"    :and,
+   "class"  :class,
+   "else"   :else,
+   "false"  :false,
+   "for"    :for,
+   "fun"    :fun,
+   "if"     :if,
+   "nil"    :nil,
+   "or"     :or,
+   "print"  :print,
    "return" :return,
-   "super" :super,
-   "this" :this,
-   "true" :true,
-   "var" :var,
-   "while" :while})
+   "super"  :super,
+   "this"   :this,
+   "true"   :true,
+   "var"    :var,
+   "while"  :while})
 
 (defn- digit? [c] (and c (Character/isDigit c)))
 
