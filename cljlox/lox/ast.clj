@@ -1,9 +1,33 @@
-(ns lox.ast)
+(ns lox.ast
+  (:require [lox.scanner :as scanner]))
 
-(defn binary [left operator right] {:type :binary, :left left, :operator operator, :right right})
-
-(defn grouping [expr] {:type :grouping, :expr expr})
-
-(defn literal [value] {:type :literal, :value value})
-
-(defn unary [operator right] {:type :unary, :operator operator, :right right})
+(def ExprSchema
+  [:schema
+   {:registry
+    {::expr
+     [:multi
+      {:dispatch :type}
+      [:literal
+       [:map
+        [:type [:= :literal]]
+        [:value :any]]]
+      [:variable
+       [:map
+        [:type [:= :variable]]
+        [:name scanner/TokenSchema]]]
+      [:unary
+       [:map
+        [:type [:= :unary]]
+        [:op scanner/TokenSchema]
+        [:right [:ref ::expr]]]]
+      [:binary
+       [:map
+        [:type [:= :binary]]
+        [:op scanner/TokenSchema]
+        [:left [:ref ::expr]]
+        [:right [:ref ::expr]]]]
+      [:grouping
+       [:map
+        [:type [:= :grouping]]
+        [:expression [:ref ::expr]]]]]}}
+   ::expr])
