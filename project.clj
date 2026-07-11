@@ -7,7 +7,13 @@
   :source-paths ["cljlox"]
   :dependencies [[org.clojure/clojure "1.12.4"]
                  [metosin/malli "0.20.1"]]
-  :zprint {:old? false :width 120}
+  :zprint {:old? false
+           :width 120
+           :vector {:respect-nl? true
+                    :wrap? false}
+           :map    {:respect-nl? true
+                    :justify? true}
+           :style :community}
   :main ^:skip-aot lox.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
