@@ -84,8 +84,8 @@
         [{:type :eof, :lexeme "", :line line} state]
         (cond
           ;; --- single character operators ---
-          (= c \() [{:type :lparam, :lexeme "(", :line line} (update state :chars rest)]
-          (= c \)) [{:type :rparam, :lexeme ")", :line line} (update state :chars rest)]
+          (= c \() [{:type :lparen, :lexeme "(", :line line} (update state :chars rest)]
+          (= c \)) [{:type :rparen, :lexeme ")", :line line} (update state :chars rest)]
           (= c \{) [{:type :lbrace, :lexeme "{", :line line} (update state :chars rest)]
           (= c \}) [{:type :rbrace, :lexeme "}", :line line} (update state :chars rest)]
           (= c \,) [{:type :comma, :lexeme ",", :line line} (update state :chars rest)]
