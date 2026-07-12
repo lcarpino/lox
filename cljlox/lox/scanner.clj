@@ -41,7 +41,7 @@
 (defn- scan-string
   {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
   [initial-state]
-  (loop [state initial-state
+  (loop [state (update initial-state :chars rest)
          acc []]
     (let [c (first (:chars state))]
       (cond (nil? c) (let [lexeme (apply str acc)]
