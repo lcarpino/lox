@@ -31,3 +31,19 @@
         [:type [:= :grouping]]
         [:expression [:ref ::expr]]]]]}}
    ::expr])
+
+(def StmtSchema
+  [:schema
+   {:registry
+    {::stmt
+     [:multi
+      {:dispatch :type}
+      [:print
+       [:map
+        [:type [:= :print]]
+        [:expression ExprSchema]]]
+      [:expr
+       [:map
+        [:type [:= :expr]]
+        [:expression ExprSchema]]]]}}
+   ::stmt])
