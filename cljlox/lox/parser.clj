@@ -8,6 +8,8 @@
 
 (def ParserFnSchema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]])
 
+(def ParserOutputSchema [:sequential ast/StmtSchema])
+
 (declare parse-expression)
 
 (defn parse-primary
@@ -72,3 +74,41 @@
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
   (parse-equality state))
+
+(defn- parse-print-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [state-after-print (assoc state :tokens (rest (:tokens state)))
+        [expr state-after-expr] (parse-expression state-after-print)
+        semicolon-token (first (:tokens state-after-expr))]
+    (if (= (:type semicolon-token) :semicolon)
+      [{:type :print, :expression expr}
+       (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
+      (throw (ex-info "Expect ';' after value." {:line (:line semicolon-token)})))))
+
+(defn- parse-expr-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [[expr state-after-expr] (parse-expression state)
+        semicolon-token (first (:tokens state-after-expr))]
+    (if (= (:type semicolon-token) :semicolon)
+      [{:type :expr, :expression expr}
+       (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
+      (throw (ex-info "Expect ';' after expression." {:line (:line semicolon-token)})))))
+
+(defn parse-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [token (first (:tokens state))]
+    (cond (= (:type token) :print) (parse-print-statement state)
+          :else (parse-expr-statement state))))
+
+(defn parse
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ParserOutputSchema ParserStateSchema]]}
+  [initial-state]
+  (loop [statements []
+         state initial-state]
+    (let [token (first (:tokens state))]
+      (if (or (nil? token) (= (:type token) :eof))
+        [statements state]
+        (let [[stmt next-state] (parse-statement state)] (recur (conj statements stmt) next-state))))))
