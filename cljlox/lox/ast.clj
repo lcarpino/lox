@@ -29,7 +29,12 @@
       [:grouping
        [:map
         [:type [:= :grouping]]
-        [:expression [:ref ::expr]]]]]}}
+        [:expression [:ref ::expr]]]]
+      [:assign
+       [:map
+        [:type [:= :assign]]
+        [:name scanner/TokenSchema]
+        [:value [:ref ::expr]]]]]}}
    ::expr])
 
 (def StmtSchema
@@ -45,5 +50,9 @@
       [:expr
        [:map
         [:type [:= :expr]]
-        [:expression ExprSchema]]]]}}
+        [:expression ExprSchema]]]
+      [:var
+       [:map
+        [:type [:= :var]]
+        [:initialiser [:maybe ExprSchema]]]]]}}
    ::stmt])

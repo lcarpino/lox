@@ -70,6 +70,19 @@
 
 (def parse-equality (make-binary-parser #{:bang-equal :equal-equal} parse-comparison))
 
+(defn parse-assignment
+  {:malli/schema [:=> [:cat ParserStateSchema [:tuple ast/ExprSchema ParserStateSchema]]]}
+  [state]
+  (let [[left-expr state-after-left] (parse-equality state)
+        token (first (:tokens state-after-left))]
+    (if (and token (= (:type token) :equal))
+      (let [state-after-equal (assoc state-after-left :tokens (rest (:tokens state-after-left)))
+            [value-expr state-after-value] (parse-assignment state-after-equal)]
+        (if (= (:type left-expr) :variable)
+          [{:type :assign, :name (:name left-expr), :value value-expr} state-after-value]
+          (throw (ex-info "Invalid assignment target." {:line (:line token)}))))
+      [left-expr state-after-left])))
+
 (defn parse-expression
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
@@ -96,11 +109,33 @@
        (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
       (throw (ex-info "Expect ';' after expression." {:line (:line semicolon-token)})))))
 
+(defn- parse-var-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [state-after-var (assoc state :tokens (rest (:tokens state)))
+        name-token (first (:tokens state-after-var))]
+    (if (= (:type name-token) :identifier)
+      (let [state-after-name (assoc state-after-var :tokens (rest (:tokens state-after-var)))
+            next-token (first (:tokens state-after-name))]
+        (cond (= (:type next-token) :equal)
+              (let [state-after-equal (assoc state-after-name :tokens (rest (:tokens state-after-name)))
+                    [expr state-after-expr] (parse-expression state-after-equal)
+                    semi-token (first (:tokens state-after-expr))]
+                (if (= (:type semi-token) :semicolon)
+                  [{:type :var, :name name-token, :initialiser expr}
+                   (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
+                  (throw (ex-info "Expect ';' after variable declaration." {:line (:line semi-token)}))))
+              (= (:type next-token) :semicolon) [{:type :var, :name name-token, :initialiser nil}
+                                                 (assoc state-after-name :tokens (rest (:tokens state-after-name)))]
+              :else (throw (ex-info "Expect ';' or '=' after variable name." {:line (:line next-token)}))))
+      (throw (ex-info "Expect variable name" {:line (:line name-token)})))))
+
 (defn parse-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [token (first (:tokens state))]
     (cond (= (:type token) :print) (parse-print-statement state)
+          (= (:type token) :var) (parse-var-statement state)
           :else (parse-expr-statement state))))
 
 (defn parse
