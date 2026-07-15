@@ -86,7 +86,7 @@
 (defn parse-expression
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
-  (parse-equality state))
+  (parse-assignment state))
 
 (defn- parse-print-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
