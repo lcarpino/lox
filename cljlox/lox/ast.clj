@@ -51,8 +51,9 @@
        [:map
         [:type [:= :expr]]
         [:expression ExprSchema]]]
-      [:var
+      [:var-stmt
        [:map
-        [:type [:= :var]]
+        [:type [:= :var-stmt]]
+        [:name scanner/TokenSchema]
         [:initialiser [:maybe ExprSchema]]]]]}}
    ::stmt])

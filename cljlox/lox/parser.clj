@@ -122,10 +122,10 @@
                     [expr state-after-expr] (parse-expression state-after-equal)
                     semi-token (first (:tokens state-after-expr))]
                 (if (= (:type semi-token) :semicolon)
-                  [{:type :var, :name name-token, :initialiser expr}
+                  [{:type :var-stmt, :name name-token, :initialiser expr}
                    (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
                   (throw (ex-info "Expect ';' after variable declaration." {:line (:line semi-token)}))))
-              (= (:type next-token) :semicolon) [{:type :var, :name name-token, :initialiser nil}
+              (= (:type next-token) :semicolon) [{:type :var-stmt, :name name-token, :initialiser nil}
                                                  (assoc state-after-name :tokens (rest (:tokens state-after-name)))]
               :else (throw (ex-info "Expect ';' or '=' after variable name." {:line (:line next-token)}))))
       (throw (ex-info "Expect variable name" {:line (:line name-token)})))))
