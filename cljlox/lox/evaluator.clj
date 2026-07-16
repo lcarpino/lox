@@ -1,10 +1,17 @@
 (ns lox.evaluator
-  (:require [lox.environment :as environment]
+  (:require [lox.ast :as ast]
+            [lox.environment :as environment]
             [lox.memory :as memory]))
 
 (defn- truthy? [val] (not (or (nil? val) (false? val))))
 
-(defmulti evaluate (fn [expr env] (:type expr)))
+(defmulti evaluate
+  {:malli/schema [:=> [:cat ast/ExprSchema environment/EnvSchema] memory/ValueSchema]}
+  (fn [expr env] (:type expr)))
+
+(defmulti execute
+  {:malli/schema [:=> [:cat ast/StmtSchema environment/EnvSchema] environment/EnvSchema]}
+  (fn [stmt env] (:type stmt)))
 
 (defmethod evaluate :literal [expr env] (:value expr))
 
@@ -45,8 +52,6 @@
           (= op-type :equal-equal) (= left right)
           (= op-type :plus) (if (and (string? left) (string? right)) (str left right) (+ left right))
           :else (throw (ex-info "Unknown binary operator" {:node expr})))))
-
-(defmulti execute (fn [stmt env] (:type stmt)))
 
 (defmethod execute :expr [stmt env] (evaluate (:expression stmt) env) env)
 
