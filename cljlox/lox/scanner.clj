@@ -9,7 +9,7 @@
 
 (def ScannerStateSchema
   [:map
-   [:chars [:sequential :char]]
+   [:chars [:sequential char?]]
    [:line :int]])
 
 (def ScannerOutputSchema [:sequential TokenSchema])
