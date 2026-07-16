@@ -189,6 +189,35 @@
             [body state] (parse-statement state)]
         [{:type :while, :condition condition, :body body} state]))))
 
+(defn- parse-for-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [state (assoc state :tokens (rest (:tokens state)))
+        lparen (first (:tokens state))]
+    (when-not (= (:type lparen) :lparen) (throw (ex-info "Expect '(' after 'for'." {:line (:line lparen)})))
+    (let [state (assoc state :tokens (rest (:tokens state)))
+          init-token (first (:tokens state))
+          [init-stmt state] (cond (= (:type init-token) :semicolon) [nil (assoc state :tokens (rest (:tokens state)))]
+                                  (= (:type init-token) :var) (parse-var-statement state)
+                                  :else (parse-expr-statement state))
+          cond-token (first (:tokens state))
+          [cond-expr state] (if (= (:type cond-token) :semicolon) [nil state] (parse-expression state))
+          semi-token (first (:tokens state))]
+      (when-not (= (:type semi-token) :semicolon)
+        (throw (ex-info "Expect ';' after loop condition." {:line (:line semi-token)})))
+      (let [state (assoc state :tokens (rest (:tokens state)))
+            inc-token (first (:tokens state))
+            [inc-expr state] (if (= (:type inc-token) :rparen) [nil state] (parse-expression state))
+            rparen (first (:tokens state))]
+        (when-not (= (:type rparen) :rparen) (throw (ex-info "Expect ')' after for clauses." {:line (:line rparen)})))
+        (let [state (assoc state :tokens (rest (:tokens state)))
+              [body state] (parse-statement state)
+              body-with-inc (if inc-expr {:type :block, :statements [body {:type :expr, :expression inc-expr}]} body)
+              loop-cond (if cond-expr cond-expr {:type :literal, :value true})
+              while-stmt {:type :while, :condition loop-cond, :body body-with-inc}
+              final-stmt (if init-stmt {:type :block, :statements [init-stmt while-stmt]} while-stmt)]
+          [final-stmt state])))))
+
 (defn parse-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
@@ -197,6 +226,7 @@
           (= (:type token) :var) (parse-var-statement state)
           (= (:type token) :if) (parse-if-statement state)
           (= (:type token) :while) (parse-while-statement state)
+          (= (:type token) :for) (parse-for-statement state)
           (= (:type token) :lbrace) (parse-block (assoc state :tokens (rest (:tokens state))))
           :else (parse-expr-statement state))))
 

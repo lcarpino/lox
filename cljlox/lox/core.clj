@@ -1,5 +1,6 @@
 (ns lox.core
-  (:require [lox.environment :as environment]
+  (:require [clojure.java.io :as io]
+            [lox.environment :as environment]
             [lox.evaluator :as evaluator]
             [lox.memory :as memory]
             [lox.parser :as parser]
@@ -27,7 +28,12 @@
                      :else (println "System Error: " (.getMessage e)))
                env))))))
 
-(defn- run-file [& args])
+(defn- run-file
+  [path]
+  (let [file (io/file path)]
+    (if (.exists file)
+      (do (memory/empty-store!) (run (slurp file) (environment/empty-env)))
+      (println "File not found: " path))))
 
 (defn- run-prompt
   []
