@@ -1,5 +1,5 @@
 (ns lox.ast
-  (:require [lox.scanner :as scanner]))
+  (:require [lox.token :refer [TokenSchema]]))
 
 (def ExprSchema
   [:schema
@@ -14,16 +14,16 @@
       [:variable
        [:map
         [:type [:= :variable]]
-        [:name scanner/TokenSchema]]]
+        [:name TokenSchema]]]
       [:unary
        [:map
         [:type [:= :unary]]
-        [:op scanner/TokenSchema]
+        [:op TokenSchema]
         [:right [:ref ::expr]]]]
       [:binary
        [:map
         [:type [:= :binary]]
-        [:op scanner/TokenSchema]
+        [:op TokenSchema]
         [:left [:ref ::expr]]
         [:right [:ref ::expr]]]]
       [:grouping
@@ -33,7 +33,7 @@
       [:assign
        [:map
         [:type [:= :assign]]
-        [:name scanner/TokenSchema]
+        [:name TokenSchema]
         [:value [:ref ::expr]]]]]}}
    ::expr])
 
@@ -54,7 +54,7 @@
       [:var-stmt
        [:map
         [:type [:= :var-stmt]]
-        [:name scanner/TokenSchema]
+        [:name TokenSchema]
         [:initialiser [:maybe ExprSchema]]]]
       [:block
        [:map

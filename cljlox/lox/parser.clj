@@ -1,10 +1,10 @@
 (ns lox.parser
-  (:require [lox.scanner :as scanner]
-            [lox.ast :as ast]))
+  (:require [lox.ast :as ast]
+            [lox.token :refer [TokenSchema]]))
 
 (def ParserStateSchema
   [:map
-   [:tokens [:sequential scanner/TokenSchema]]])
+   [:tokens [:sequential TokenSchema]]])
 
 (def ParserFnSchema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]])
 

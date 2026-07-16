@@ -1,11 +1,5 @@
-(ns lox.scanner)
-
-(def TokenSchema
-  [:map
-   [:type :keyword]
-   [:lexeme :string]
-   [:line :int]
-   [:literal {:optional true} :any]])
+(ns lox.scanner
+  (:require [lox.token :refer [TokenSchema]]))
 
 (def ScannerStateSchema
   [:map
