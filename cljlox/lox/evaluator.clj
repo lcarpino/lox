@@ -10,11 +10,12 @@
 
 (defmethod evaluate :grouping [expr env] (evaluate (:expression expr) env))
 
-(defmethod evaluate :variable [expr env]
-  (let [address (environment/resolve-address env (:name expr))]
-    (memory/read-store address)))
+(defmethod evaluate :variable
+  [expr env]
+  (let [address (environment/resolve-address env (:name expr))] (memory/read-store address)))
 
-(defmethod evaluate :assign [expr env]
+(defmethod evaluate :assign
+  [expr env]
   (let [value (evaluate (:value expr) env)
         address (environment/resolve-address env (:name expr))]
     (memory/write-store! address value)
@@ -55,25 +56,34 @@
     (println (if (nil? value) "nil" (str value)))
     env))
 
-(defmethod execute :var-stmt [stmt env]
-  (let [value (if (:initialiser stmt)
-                (evaluate (:initialiser stmt) env)
-                nil)]
+(defmethod execute :var-stmt
+  [stmt env]
+  (let [value (if (:initialiser stmt) (evaluate (:initialiser stmt) env) nil)]
     (environment/define env (:name stmt) value)))
+
+(defmethod execute :block
+  [stmt env]
+  (let [inner-env (cons {} env)]
+    (loop [current-env inner-env
+           remaining-stmts (:statements stmt)]
+      (if (empty? remaining-stmts)
+        nil
+        (let [stmt (first remaining-stmts)
+              new-env (execute stmt current-env)]
+          (recur new-env (rest remaining-stmts)))))))
 
 (defn interpret
   [statements]
   (memory/empty-store!)
-  (try
-    (loop [env (environment/empty-env)
-           remaining-stmts statements]
-      (if (empty? remaining-stmts)
-        nil
-        (let [stmt (first remaining-stmts)
-              new-env (execute stmt env)]
-          (recur new-env (rest remaining-stmts)))))
-  (catch Exception e
-    (let [token (:token (ex-data e))]
-      (if token
-        (println (str "Runtime Error: " (.getMessage e) "\n[line " (:line token) "]"))
-        (println "JVM Error: " (.getMessage e)))))))
+  (try (loop [env (environment/empty-env)
+              remaining-stmts statements]
+         (if (empty? remaining-stmts)
+           nil
+           (let [stmt (first remaining-stmts)
+                 new-env (execute stmt env)]
+             (recur new-env (rest remaining-stmts)))))
+       (catch Exception e
+         (let [token (:token (ex-data e))]
+           (if token
+             (println (str "Runtime Error: " (.getMessage e) "\n[line " (:line token) "]"))
+             (println "JVM Error: " (.getMessage e)))))))

@@ -11,6 +11,7 @@
 (def ParserOutputSchema [:sequential ast/StmtSchema])
 
 (declare parse-expression)
+(declare parse-statement)
 
 (defn parse-primary
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
@@ -88,6 +89,18 @@
   [state]
   (parse-assignment state))
 
+(defn- parse-block
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (loop [statements []
+         current-state state]
+    (let [token (first (:tokens current-state))]
+      (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after block." {:line (:line token)}))
+            (= (:type token) :rbrace) [{:type :block, :statements statements}
+                                       (assoc current-state :tokens (test (:tokens current-state)))]
+            :else (let [[statement next-state] (parse-statement current-state)]
+                    (recur (conj statements statement) next-state))))))
+
 (defn- parse-print-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
@@ -136,6 +149,7 @@
   (let [token (first (:tokens state))]
     (cond (= (:type token) :print) (parse-print-statement state)
           (= (:type token) :var) (parse-var-statement state)
+          (= (:type token) :lbrace) (parse-block (assoc state :tokens (rest (:tokens state))))
           :else (parse-expr-statement state))))
 
 (defn parse
