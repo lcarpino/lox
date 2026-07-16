@@ -8,13 +8,6 @@
   {:malli/schema [:=> [:cat FormatSchema [:or ast/ExprSchema ast/StmtSchema]] :string]}
   (fn [fmt node] [fmt (:type node)]))
 
-(defn print-program
-  {:malli/schema [:=> [:cat FormatSchema [:sequential ast/StmtSchema]] :string]}
-  [fmt statements]
-  (loop [stmts statements
-         acc []]
-    (if (empty? stmts) (str/join "\n" acc) (recur (rest stmts) (conj acc (print-ast fmt (first stmts)))))))
-
 (defmethod print-ast [:sexp :literal]
   [_ node]
   (let [val (:value node)]
@@ -40,6 +33,14 @@
   (str "(" (:lexeme (:op node)) " " (print-ast fmt (:left node)) " " (print-ast fmt (:right node)) ")"))
 
 (defmethod print-ast [:lox :binary]
+  [fmt node]
+  (str (print-ast fmt (:left node)) " " (:lexeme (:op node)) " " (print-ast fmt (:right node))))
+
+(defmethod print-ast [:sexp :logical]
+  [fmt node]
+  (str "(" (:lexeme (:op node)) " " (print-ast fmt (:left node)) " " (print-ast fmt (:right node)) ")"))
+
+(defmethod print-ast [:lox :logical]
   [fmt node]
   (str (print-ast fmt (:left node)) " " (:lexeme (:op node)) " " (print-ast fmt (:right node))))
 
@@ -79,4 +80,29 @@
   [fmt node]
   (let [stmts-str (map #(print-ast fmt %) (:statements node))] (str "{ " (str/join " " stmts-str) " }")))
 
+(defmethod print-ast [:sexp :if]
+  [fmt node]
+  (let [else-str (if (:else-branch node) (str " " (print-ast fmt (:else-branch node))) "")]
+    (str "(if " (print-ast fmt (:condition node)) " " (print-ast fmt (:then-branch node)) else-str ")")))
+
+(defmethod print-ast [:lox :if]
+  [fmt node]
+  (let [else-str (if (:else-branch node) (str " else " (print-ast fmt (:else-branch node))) "")]
+    (str "if (" (print-ast fmt (:condition node)) ") " (print-ast fmt (:then-branch node)) else-str)))
+
+(defmethod print-ast [:sexp :while]
+  [fmt node]
+  (str "(while " (print-ast fmt (:condition node)) " " (print-ast fmt (:body node)) ")"))
+
+(defmethod print-ast [:lox :while]
+  [fmt node]
+  (str "while (" (print-ast fmt (:condition node)) ") " (print-ast fmt (:body node))))
+
 (defmethod print-ast :default [fmt node] (str "<unknown-node: " (:type node) " for format " fmt ">"))
+
+(defn print-program
+  {:malli/schema [:=> [:cat FormatSchema [:sequential ast/StmtSchema]] :string]}
+  [fmt statements]
+  (loop [stmts statements
+         acc []]
+    (if (empty? stmts) (str/join "\n" acc) (recur (rest stmts) (conj acc (print-ast fmt (first stmts)))))))

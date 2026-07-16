@@ -34,7 +34,13 @@
        [:map
         [:type [:= :assign]]
         [:name TokenSchema]
-        [:value [:ref ::expr]]]]]}}
+        [:value [:ref ::expr]]]]
+      [:logical
+       [:map
+        [:type [:= :logical]]
+        [:op TokenSchema]
+        [:left [:ref ::expr]]
+        [:right [:ref ::expr]]]]]}}
    ::expr])
 
 (def StmtSchema
@@ -59,5 +65,16 @@
       [:block
        [:map
         [:type [:= :block]]
-        [:statements [:sequential [:ref ::stmt]]]]]]}}
+        [:statements [:sequential [:ref ::stmt]]]]]
+      [:if
+       [:map
+        [:type [:= :if]]
+        [:condition ExprSchema]
+        [:then-branch [:ref ::stmt]]
+        [:else-branch [:maybe [:ref ::stmt]]]]]
+      [:while
+       [:map
+        [:type [:= :while]]
+        [:condition ExprSchema]
+        [:body [:ref ::stmt]]]]]}}
    ::stmt])

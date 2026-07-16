@@ -53,6 +53,14 @@
           (= op-type :plus) (if (and (string? left) (string? right)) (str left right) (+ left right))
           :else (throw (ex-info "Unknown binary operator" {:node expr})))))
 
+(defmethod evaluate :logical
+  [expr env]
+  (let [left-val (evaluate (:left expr) env)
+        op-type (get-in expr [:op :type])]
+    (if (= op-type :or)
+      (if (truthy? left-val) left-val (evaluate (:right expr) env))
+      (if (not (truthy? left-val)) left-val (evaluate (:right expr) env)))))
+
 (defmethod execute :expr [stmt env] (evaluate (:expression stmt) env) env)
 
 (defmethod execute :print
@@ -77,3 +85,16 @@
               new-env (execute stmt current-env)]
           (recur new-env (rest remaining-stmts))))))
   env)
+
+(defmethod execute :if
+  [stmt env]
+  (if (truthy? (evaluate (:condition stmt) env))
+    (execute (:then-branch stmt) env)
+    (if (:else-branch stmt) (execute (:else-branch stmt) env) env)))
+
+(defmethod execute :while
+  [stmt env]
+  (loop [current-env env]
+    (if (truthy? (evaluate (:condition stmt) current-env))
+      (let [env-after-body (execute (:body stmt) current-env)] (recur env-after-body))
+      current-env)))

@@ -62,19 +62,32 @@
               (recur new-binary-node state-after-right))
             [left-expr state]))))))
 
+(defn- make-logical-parser
+  {:malli/schema [:=> [:cat [:set :keyword] ParserFnSchema] ParserFnSchema]}
+  [operator-types next-parser-fn]
+  (fn [initial-state]
+    (let [[expr state-after-left] (next-parser-fn initial-state)]
+      (loop [left-expr expr
+             state state-after-left]
+        (let [token (first (:tokens state))]
+          (if (contains? operator-types (:type token))
+            (let [state-after-op (assoc state :tokens (rest (:tokens state)))
+                  [right-expr state-after-right] (next-parser-fn state-after-op)]
+              (recur {:type :logical, :op token, :left left-expr, :right right-expr} state-after-right))
+            [left-expr state]))))))
 
 (def parse-factor (make-binary-parser #{:slash :star} parse-unary))
-
 (def parse-term (make-binary-parser #{:minus :plus} parse-factor))
-
 (def parse-comparison (make-binary-parser #{:less :less-equal :greater :greater-equal} parse-term))
-
 (def parse-equality (make-binary-parser #{:bang-equal :equal-equal} parse-comparison))
+
+(def parse-and (make-logical-parser #{:and} parse-equality))
+(def parse-or (make-logical-parser #{:or} parse-and))
 
 (defn parse-assignment
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
-  (let [[left-expr state-after-left] (parse-equality state)
+  (let [[left-expr state-after-left] (parse-or state)
         token (first (:tokens state-after-left))]
     (if (and token (= (:type token) :equal))
       (let [state-after-equal (assoc state-after-left :tokens (rest (:tokens state-after-left)))
@@ -143,12 +156,47 @@
               :else (throw (ex-info "Expect ';' or '=' after variable name." {:line (:line next-token)}))))
       (throw (ex-info "Expect variable name" {:line (:line name-token)})))))
 
+(defn- parse-if-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [state (assoc state :tokens (rest (:tokens state)))
+        lparen (first (:tokens state))]
+    (when-not (= (:type lparen) :lparen) (throw (ex-info "Expect '(' after 'if'." {:line (:line lparen)})))
+    (let [state (assoc state :tokens (rest (:tokens state)))
+          [condition state] (parse-expression state)
+          rparen (first (:tokens state))]
+      (when-not (= (:type rparen) :rparen) (throw (ex-info "Expect ')' after 'if'." {:line (:line rparen)})))
+      (let [state (assoc state :tokens (rest (:tokens state)))
+            [then-branch state] (parse-statement state)
+            else-token (first (:tokens state))]
+        (if (= (:type else-token) :else)
+          (let [state (assoc state :tokens (rest (:tokens state)))
+                [else-branch state] (parse-statement state)]
+            [{:type :if, :condition condition, :then-branch then-branch, :else-branch else-branch} state])
+          [{:type :if, :condition condition, :then-branch then-branch, :else-branch nil} state])))))
+
+(defn- parse-while-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [state (assoc state :tokens (rest (:tokens state)))
+        lparen (first (:tokens state))]
+    (when-not (= (:type lparen) :lparen) (throw (ex-info "Expect '(' after 'while'." {:line (:line lparen)})))
+    (let [state (assoc state :tokens (rest (:tokens state)))
+          [condition state] (parse-expression state)
+          rparen (first (:tokens state))]
+      (when-not (= (:type rparen) :rparen) (throw (ex-info "Expect ')' after 'while'." {:line (:line rparen)})))
+      (let [state (assoc state :tokens (rest (:tokens state)))
+            [body state] (parse-statement state)]
+        [{:type :while, :condition condition, :body body} state]))))
+
 (defn parse-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [token (first (:tokens state))]
     (cond (= (:type token) :print) (parse-print-statement state)
           (= (:type token) :var) (parse-var-statement state)
+          (= (:type token) :if) (parse-if-statement state)
+          (= (:type token) :while) (parse-while-statement state)
           (= (:type token) :lbrace) (parse-block (assoc state :tokens (rest (:tokens state))))
           :else (parse-expr-statement state))))
 
