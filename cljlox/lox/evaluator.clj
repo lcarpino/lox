@@ -77,19 +77,3 @@
               new-env (execute stmt current-env)]
           (recur new-env (rest remaining-stmts))))))
   env)
-
-(defn interpret
-  [statements]
-  (memory/empty-store!)
-  (try (loop [env (environment/empty-env)
-              remaining-stmts statements]
-         (if (empty? remaining-stmts)
-           nil
-           (let [stmt (first remaining-stmts)
-                 new-env (execute stmt env)]
-             (recur new-env (rest remaining-stmts)))))
-       (catch Exception e
-         (let [token (:token (ex-data e))]
-           (if token
-             (println (str "Runtime Error: " (.getMessage e) "\n[line " (:line token) "]"))
-             (println "JVM Error: " (.getMessage e)))))))
