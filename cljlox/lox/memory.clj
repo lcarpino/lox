@@ -2,7 +2,7 @@
 
 (def AddressSchema :int)
 
-(def ValueSchema [:maybe [:or :number :string :boolean]])
+(def ValueSchema [:maybe [:or number? string? boolean?]])
 
 (def store (atom []))
 

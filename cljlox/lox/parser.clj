@@ -72,7 +72,7 @@
 (def parse-equality (make-binary-parser #{:bang-equal :equal-equal} parse-comparison))
 
 (defn parse-assignment
-  {:malli/schema [:=> [:cat ParserStateSchema [:tuple ast/ExprSchema ParserStateSchema]]]}
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
   (let [[left-expr state-after-left] (parse-equality state)
         token (first (:tokens state-after-left))]

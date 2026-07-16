@@ -2,7 +2,7 @@
   (:require [lox.memory :as memory]
             [lox.scanner :as scanner]))
 
-(def EnvSchema [:sequential [:map-of memory/ValueSchema]])
+(def EnvSchema [:sequential [:map-of :string memory/AddressSchema]])
 
 (defn empty-env {:malli/schema [:=> [:cat] EnvSchema]} [] '({}))
 
