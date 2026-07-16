@@ -75,7 +75,8 @@
         nil
         (let [stmt (first remaining-stmts)
               new-env (execute stmt current-env)]
-          (recur new-env (rest remaining-stmts)))))))
+          (recur new-env (rest remaining-stmts))))))
+  env)
 
 (defn interpret
   [statements]

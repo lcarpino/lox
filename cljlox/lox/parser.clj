@@ -97,7 +97,7 @@
     (let [token (first (:tokens current-state))]
       (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after block." {:line (:line token)}))
             (= (:type token) :rbrace) [{:type :block, :statements statements}
-                                       (assoc current-state :tokens (test (:tokens current-state)))]
+                                       (assoc current-state :tokens (rest (:tokens current-state)))]
             :else (let [[statement next-state] (parse-statement current-state)]
                     (recur (conj statements statement) next-state))))))
 

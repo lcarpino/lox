@@ -55,5 +55,9 @@
        [:map
         [:type [:= :var-stmt]]
         [:name scanner/TokenSchema]
-        [:initialiser [:maybe ExprSchema]]]]]}}
+        [:initialiser [:maybe ExprSchema]]]]
+      [:block
+       [:map
+        [:type [:= :block]]
+        [:statements [:sequential [:ref ::stmt]]]]]]}}
    ::stmt])
