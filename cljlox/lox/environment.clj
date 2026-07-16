@@ -1,15 +1,13 @@
 (ns lox.environment
   (:require [lox.memory :as memory]))
 
-(defn empty-env []
-  '({}))
+(defn empty-env [] '({}))
 
-(defn resolve-address [env name-token]
+(defn resolve-address
+  [env name-token]
   (let [lexeme (:lexeme name-token)
         address (some #(get % lexeme) env)]
-    (if address
-      address
-      (throw (ex-info (str "Undefined variable '" lexeme "'.") {:token name-token})))))
+    (if address address (throw (ex-info (str "Undefined variable '" lexeme "'.") {:token name-token})))))
 
 (defn define
   [env name-token value]
