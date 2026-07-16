@@ -3,6 +3,9 @@
             [lox.environment :as environment]
             [lox.memory :as memory]))
 
+
+(def ReturnSchema [:map [:type [:= :return-value]] [:value memory/ValueSchema]])
+
 (defn- truthy? [val] (not (or (nil? val) (false? val))))
 
 (defmulti evaluate
@@ -10,7 +13,7 @@
   (fn [expr env] (:type expr)))
 
 (defmulti execute
-  {:malli/schema [:=> [:cat ast/StmtSchema environment/EnvSchema] environment/EnvSchema]}
+  {:malli/schema [:=> [:cat ast/StmtSchema environment/EnvSchema] [:or environment/EnvSchema ReturnSchema]]}
   (fn [stmt env] (:type stmt)))
 
 (defmethod evaluate :literal [expr env] (:value expr))
@@ -61,6 +64,17 @@
       (if (truthy? left-val) left-val (evaluate (:right expr) env))
       (if (not (truthy? left-val)) left-val (evaluate (:right expr) env)))))
 
+(defmethod evaluate :call
+  [expr env]
+  (let [callee (evaluate (:callee expr) env)
+        args (map #(evaluate % env) (:arguments expr))]
+    (if-not (and (map? callee) (= (:type callee) :lox-function))
+      (throw (ex-info "Can only call functions and classes." {:token (:paren expr)}))
+      (if-not (= (count args) (:arity callee))
+        (throw (ex-info (str "Expected " (:arity callee) " arguments but got " (count args) ".")
+                        {:token (:paren expr)}))
+        ((:call-fn callee) args)))))
+
 (defmethod execute :expr [stmt env] (evaluate (:expression stmt) env) env)
 
 (defmethod execute :print
@@ -80,11 +94,10 @@
     (loop [current-env inner-env
            remaining-stmts (:statements stmt)]
       (if (empty? remaining-stmts)
-        nil
-        (let [stmt (first remaining-stmts)
-              new-env (execute stmt current-env)]
-          (recur new-env (rest remaining-stmts))))))
-  env)
+        (rest current-env)
+        (let [s (first remaining-stmts)
+              result (execute s current-env)]
+          (if (and (map? result) (= (:type result) :return-value)) result (recur result (rest remaining-stmts))))))))
 
 (defmethod execute :if
   [stmt env]
@@ -96,5 +109,38 @@
   [stmt env]
   (loop [current-env env]
     (if (truthy? (evaluate (:condition stmt) current-env))
-      (let [env-after-body (execute (:body stmt) current-env)] (recur env-after-body))
+      (let [result (execute (:body stmt) current-env)]
+        (if (and (map? result) (= (:type result) :return-value)) result (recur result)))
       current-env)))
+
+(defn- make-function
+  [stmt closure-env]
+  {:type    :lox-function,
+   :arity   (count (:params stmt)),
+   :call-fn (fn [args]
+              (let [env-with-params (reduce (fn [env [param-token arg-val]]
+                                              (environment/define env param-token arg-val))
+                                            (cons {} closure-env)
+                                            (map vector (:params stmt) args))]
+                (loop [current-env env-with-params
+                       stmts (:body stmt)]
+                  (if (empty? stmts)
+                    nil
+                    (let [result (execute (first stmts) current-env)]
+                      (if (and (map? result) (= (:type result) :return-value))
+                        (:value result)
+                        (recur result (rest stmts))))))))})
+
+
+(defmethod execute :function
+  [stmt env]
+  (let [lexeme (:lexeme (:name stmt))
+        address (memory/alloc! nil)
+        new-env (cons (assoc (first env) lexeme address) (rest env))
+        func (make-function stmt new-env)]
+    (memory/write-store! address func)
+    new-env))
+
+(defmethod execute :return
+  [stmt env]
+  (let [value (if (:value stmt) (evaluate (:value stmt) env) nil)] {:type :return-value, :value value}))

@@ -40,7 +40,13 @@
         [:type [:= :logical]]
         [:op TokenSchema]
         [:left [:ref ::expr]]
-        [:right [:ref ::expr]]]]]}}
+        [:right [:ref ::expr]]]]
+      [:call
+       [:map
+        [:type [:= :call]]
+        [:callee [:ref ::expr]]
+        [:paren TokenSchema]
+        [:arguments [:sequential [:ref ::expr]]]]]]}}
    ::expr])
 
 (def StmtSchema
@@ -76,5 +82,16 @@
        [:map
         [:type [:= :while]]
         [:condition ExprSchema]
-        [:body [:ref ::stmt]]]]]}}
+        [:body [:ref ::stmt]]]]
+      [:function
+       [:map
+        [:type [:= :function]]
+        [:name TokenSchema]
+        [:params [:sequential TokenSchema]]
+        [:body [:sequential [:ref ::stmt]]]]]
+      [:return
+       [:map
+        [:type [:= :return]]
+        [:keyword TokenSchema]
+        [:value [:maybe ExprSchema]]]]]}}
    ::stmt])

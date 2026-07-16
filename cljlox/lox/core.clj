@@ -18,8 +18,10 @@
                (if (empty? remaining-stmts)
                  current-env
                  (let [stmt (first remaining-stmts)
-                       new-env (evaluator/execute stmt current-env)]
-                   (recur new-env (rest remaining-stmts))))))
+                       result (evaluator/execute stmt current-env)]
+                   (if (and (map? result) (= (:type result) :return-value))
+                     (do (println "Runtime Error: Return outside function.") current-env)
+                     (recur result (rest remaining-stmts)))))))
            (catch Exception e
              (let [data (ex-data e)]
                (cond (:line data) (println (str "[line " (:line data) "] Error at parser: " (.getMessage e)))

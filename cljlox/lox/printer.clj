@@ -98,6 +98,36 @@
   [fmt node]
   (str "while (" (print-ast fmt (:condition node)) ") " (print-ast fmt (:body node))))
 
+(defmethod print-ast [:sexp :function]
+  [fmt node]
+  (let [params-str (str/join " " (map :lexeme (:params node)))
+        body-str (str/join " " (map #(print-ast fmt %) (:body node)))]
+    (str "(fun " (:lexeme (:name node)) " (" params-str ") " body-str ")")))
+
+(defmethod print-ast [:lox :function]
+  [fmt node]
+  (let [params-str (str/join ", " (map :lexeme (:params node)))
+        body-str (str/join " " (map #(print-ast fmt %) (:body node)))]
+    (str "fun " (:lexeme (:name node)) "(" params-str ") { " body-str " }")))
+
+(defmethod print-ast [:sexp :call]
+  [fmt node]
+  (let [args-str (str/join " " (map #(print-ast fmt %) (:arguments node)))]
+    (str "(call " (print-ast fmt (:callee node)) " " args-str ")")))
+
+(defmethod print-ast [:lox :call]
+  [fmt node]
+  (let [args-str (str/join ", " (map #(print-ast fmt %) (:arguments node)))]
+    (str (print-ast fmt (:callee node)) "(" args-str ")")))
+
+(defmethod print-ast [:sexp :return]
+  [fmt node]
+  (if (:value node) (str "(return " (print-ast fmt (:value node)) ")") "(return)"))
+
+(defmethod print-ast [:lox :return]
+  [fmt node]
+  (if (:value node) (str "return " (print-ast fmt (:value node)) ";") "return;"))
+
 (defmethod print-ast :default [fmt node] (str "<unknown-node: " (:type node) " for format " fmt ">"))
 
 (defn print-program
