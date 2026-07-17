@@ -1,0 +1,69 @@
+class Node {
+  init(value) {
+    this.value = value;
+    this.next = nil;
+  }
+}
+
+class LinkedList {
+  init() {
+    this.head = nil;
+    this.length = 0;
+  }
+
+  append(value) {
+    var newNode = Node(value);
+    if (this.head == nil) {
+      this.head = newNode;
+    } else {
+      var current = this.head;
+      while (current.next != nil) {
+        current = current.next;
+      }
+      current.next = newNode;
+    }
+    this.length = this.length + 1;
+  }
+
+  prepend(value) {
+    var newNode = Node(value);
+    newNode.next = this.head;
+    this.head = newNode;
+    this.length = this.length + 1;
+  }
+
+  get(index) {
+    if (index < 0 or index >= this.length) return nil;
+    
+    var current = this.head;
+    for (var i = 0; i < index; i = i + 1) {
+      current = current.next;
+    }
+    return current.value;
+  }
+
+  printList() {
+    var current = this.head;
+    while (current != nil) {
+      print current.value;
+      current = current.next;
+    }
+  }
+}
+
+var list = LinkedList();
+
+list.append("Banana");
+list.append("Cherry");
+list.prepend("Apple"); 
+
+list.printList(); 
+// Expected Output:
+// Apple
+// Banana
+// Cherry
+
+print "Item at index 1:";
+print list.get(1); 
+// Expected Output:
+// Banana
