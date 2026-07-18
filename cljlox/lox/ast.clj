@@ -14,7 +14,8 @@
       [:variable
        [:map
         [:type [:= :variable]]
-        [:name TokenSchema]]]
+        [:name TokenSchema]
+        [:depth {:optional true} :int]]]
       [:unary
        [:map
         [:type [:= :unary]]
@@ -34,7 +35,8 @@
        [:map
         [:type [:= :assign]]
         [:name TokenSchema]
-        [:value [:ref ::expr]]]]
+        [:value [:ref ::expr]]
+        [:depth {:optional true} :int]]]
       [:logical
        [:map
         [:type [:= :logical]]

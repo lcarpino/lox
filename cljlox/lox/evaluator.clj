@@ -22,12 +22,12 @@
 
 (defmethod evaluate :variable
   [expr env]
-  (let [address (environment/resolve-address env (:name expr))] (memory/read-store address)))
+  (let [address (environment/resolve-address env (:name expr) (:depth expr))] (memory/read-store address)))
 
 (defmethod evaluate :assign
   [expr env]
   (let [value (evaluate (:value expr) env)
-        address (environment/resolve-address env (:name expr))]
+        address (environment/resolve-address env (:name expr) (:depth expr))]
     (memory/write-store! address value)
     value))
 
@@ -73,7 +73,7 @@
       (if-not (= (count args) (:arity callee))
         (throw (ex-info (str "Expected " (:arity callee) " arguments but got " (count args) ".")
                         {:token (:paren expr)}))
-        ((:call-fn callee) args)))))
+        ((:call-fn callee) args env)))))
 
 (defmethod execute :expr [stmt env] (evaluate (:expression stmt) env) env)
 
@@ -117,10 +117,11 @@
   [stmt closure-env]
   {:type    :lox-function,
    :arity   (count (:params stmt)),
-   :call-fn (fn [args]
-              (let [env-with-params (reduce (fn [env [param-token arg-val]]
+   :call-fn (fn [args caller-env]
+              (let [stitched-env (concat (drop-last closure-env) [(last caller-env)])
+                    env-with-params (reduce (fn [env [param-token arg-val]]
                                               (environment/define env param-token arg-val))
-                                            (cons {} closure-env)
+                                            (cons {} stitched-env)
                                             (map vector (:params stmt) args))]
                 (loop [current-env env-with-params
                        stmts (:body stmt)]

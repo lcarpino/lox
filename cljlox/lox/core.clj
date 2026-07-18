@@ -1,10 +1,12 @@
 (ns lox.core
   (:require [clojure.java.io :as io]
+            [lox.analyser :as analyser]
             [lox.environment :as environment]
             [lox.evaluator :as evaluator]
             [lox.memory :as memory]
             [lox.parser :as parser]
-            [lox.scanner :as scanner]))
+            [lox.scanner :as scanner]
+            [lox.resolver :as resolver]))
 
 (defn- run
   [source env]
@@ -12,16 +14,16 @@
         scanner-errors (filter #(= (:type %) :error) tokens)]
     (if (seq scanner-errors)
       (do (doseq [err scanner-errors] (println (str "[line " (:line err) "] Error: " (:literal err)))) env)
-      (try (let [[statements _] (parser/parse {:tokens tokens})]
+      (try (let [[statements _] (parser/parse {:tokens tokens})
+                 validated-statements (analyser/analyse statements)
+                 resolved-statements (resolver/resolve validated-statements)]
              (loop [current-env env
-                    remaining-stmts statements]
+                    remaining-stmts resolved-statements]
                (if (empty? remaining-stmts)
                  current-env
                  (let [stmt (first remaining-stmts)
                        result (evaluator/execute stmt current-env)]
-                   (if (and (map? result) (= (:type result) :return-value))
-                     (do (println "Runtime Error: Return outside function.") current-env)
-                     (recur result (rest remaining-stmts)))))))
+                   (recur result (rest remaining-stmts))))))
            (catch Exception e
              (let [data (ex-data e)]
                (cond (:line data) (println (str "[line " (:line data) "] Error at parser: " (.getMessage e)))

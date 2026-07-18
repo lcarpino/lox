@@ -7,10 +7,10 @@
 (defn empty-env {:malli/schema [:=> [:cat] EnvSchema]} [] '({}))
 
 (defn resolve-address
-  {:malli/schema [:=> [:cat EnvSchema TokenSchema] memory/AddressSchema]}
-  [env name-token]
+  {:malli/schema [:=> [:cat EnvSchema TokenSchema [:maybe :int]] memory/AddressSchema]}
+  [env name-token depth]
   (let [lexeme (:lexeme name-token)
-        address (some #(get % lexeme) env)]
+        address (if depth (get (nth env depth) lexeme) (get (last env) lexeme))]
     (if address address (throw (ex-info (str "Undefined variable '" lexeme "'.") {:token name-token})))))
 
 (defn define
