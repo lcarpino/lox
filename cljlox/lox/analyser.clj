@@ -30,7 +30,8 @@
 
 (defmethod analyse-expr :this
   [context expr]
-  (when (= (:class-type context) :none) (throw (ex-info "Can't use 'this' outside of a class." {:token (:keyword expr)}))))
+  (when (= (:class-type context) :none)
+    (throw (ex-info "Can't use 'this' outside of a class." {:token (:keyword expr)}))))
 
 (defmethod analyse-expr :default [_ _] nil)
 
