@@ -7,39 +7,15 @@
     {::expr
      [:multi
       {:dispatch :type}
-      [:literal
-       [:map
-        [:type [:= :literal]]
-        [:value :any]]]
-      [:variable
-       [:map
-        [:type [:= :variable]]
-        [:name TokenSchema]
-        [:depth {:optional true} :int]]]
-      [:unary
-       [:map
-        [:type [:= :unary]]
-        [:op TokenSchema]
-        [:right [:ref ::expr]]]]
-      [:binary
-       [:map
-        [:type [:= :binary]]
-        [:op TokenSchema]
-        [:left [:ref ::expr]]
-        [:right [:ref ::expr]]]]
-      [:grouping
-       [:map
-        [:type [:= :grouping]]
-        [:expression [:ref ::expr]]]]
       [:assign
        [:map
         [:type [:= :assign]]
         [:name TokenSchema]
         [:value [:ref ::expr]]
         [:depth {:optional true} :int]]]
-      [:logical
+      [:binary
        [:map
-        [:type [:= :logical]]
+        [:type [:= :binary]]
         [:op TokenSchema]
         [:left [:ref ::expr]]
         [:right [:ref ::expr]]]]
@@ -48,7 +24,31 @@
         [:type [:= :call]]
         [:callee [:ref ::expr]]
         [:paren TokenSchema]
-        [:arguments [:sequential [:ref ::expr]]]]]]}}
+        [:arguments [:sequential [:ref ::expr]]]]]
+      [:grouping
+       [:map
+        [:type [:= :grouping]]
+        [:expression [:ref ::expr]]]]
+      [:literal
+       [:map
+        [:type [:= :literal]]
+        [:value :any]]]
+      [:logical
+       [:map
+        [:type [:= :logical]]
+        [:op TokenSchema]
+        [:left [:ref ::expr]]
+        [:right [:ref ::expr]]]]
+      [:unary
+       [:map
+        [:type [:= :unary]]
+        [:op TokenSchema]
+        [:right [:ref ::expr]]]]
+      [:variable
+       [:map
+        [:type [:= :variable]]
+        [:name TokenSchema]
+        [:depth {:optional true} :int]]]]}}
    ::expr])
 
 (def StmtSchema
@@ -57,43 +57,43 @@
     {::stmt
      [:multi
       {:dispatch :type}
-      [:print
-       [:map
-        [:type [:= :print]]
-        [:expression ExprSchema]]]
-      [:expr
-       [:map
-        [:type [:= :expr]]
-        [:expression ExprSchema]]]
-      [:var-stmt
-       [:map
-        [:type [:= :var-stmt]]
-        [:name TokenSchema]
-        [:initialiser [:maybe ExprSchema]]]]
       [:block
        [:map
         [:type [:= :block]]
         [:statements [:sequential [:ref ::stmt]]]]]
-      [:if
+      [:expr
        [:map
-        [:type [:= :if]]
-        [:condition ExprSchema]
-        [:then-branch [:ref ::stmt]]
-        [:else-branch [:maybe [:ref ::stmt]]]]]
-      [:while
-       [:map
-        [:type [:= :while]]
-        [:condition ExprSchema]
-        [:body [:ref ::stmt]]]]
+        [:type [:= :expr]]
+        [:expression ExprSchema]]]
       [:function
        [:map
         [:type [:= :function]]
         [:name TokenSchema]
         [:params [:sequential TokenSchema]]
         [:body [:sequential [:ref ::stmt]]]]]
+      [:if
+       [:map
+        [:type [:= :if]]
+        [:condition ExprSchema]
+        [:then-branch [:ref ::stmt]]
+        [:else-branch [:maybe [:ref ::stmt]]]]]
+      [:print
+       [:map
+        [:type [:= :print]]
+        [:expression ExprSchema]]]
       [:return
        [:map
         [:type [:= :return]]
         [:keyword TokenSchema]
-        [:value [:maybe ExprSchema]]]]]}}
+        [:value [:maybe ExprSchema]]]]
+      [:var-stmt
+       [:map
+        [:type [:= :var-stmt]]
+        [:name TokenSchema]
+        [:initialiser [:maybe ExprSchema]]]]
+      [:while
+       [:map
+        [:type [:= :while]]
+        [:condition ExprSchema]
+        [:body [:ref ::stmt]]]]]}}
    ::stmt])
