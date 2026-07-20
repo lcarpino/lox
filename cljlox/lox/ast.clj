@@ -39,6 +39,10 @@
         [:op TokenSchema]
         [:left [:ref ::expr]]
         [:right [:ref ::expr]]]]
+      [:this
+       [:map
+        [:type [:= :this]]
+        [:keyword TokenSchema]]]
       [:unary
        [:map
         [:type [:= :unary]]
@@ -61,6 +65,11 @@
        [:map
         [:type [:= :block]]
         [:statements [:sequential [:ref ::stmt]]]]]
+      [:class
+       [:map
+        [:type [:= :class]]
+        [:name TokenSchema]
+        [:methods [:sequential [:ref ::stmt]]]]]
       [:expr
        [:map
         [:type [:= :expr]]

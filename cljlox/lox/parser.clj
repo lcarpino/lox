@@ -24,6 +24,8 @@
       (= (:type token) :true) [{:type :literal, :value true} next-state]
       (= (:type token) :nil) [{:type :literal, :value nil} next-state]
       (#{:number :string} (:type token)) [{:type :literal, :value (:literal token)} next-state]
+      ;; --- keywords ---
+      (= (:type token) :this) [{:type :this, :keyword token} next-state]
       ;; --- variables ---
       (= (:type token) :identifier) [{:type :variable, :name token} next-state]
       ;; --- grouping ---
@@ -43,25 +45,31 @@
     (loop [callee expr
            current-state state-after-expr]
       (let [token (first (:tokens current-state))]
-        (if (= (:type token) :lparen)
-          (let [state-after-lparen (assoc current-state :tokens (rest (:tokens current-state)))
-                [args state-after-args]
-                (if (= (:type (first (:tokens state-after-lparen))) :rparen)
-                  [[] state-after-lparen]
-                  (loop [args []
-                         s state-after-lparen]
-                    (let [[arg s-after-arg] (parse-expression s)
-                          args (conj args arg)
-                          next-token (first (:tokens s-after-arg))]
-                      (if (= (:type next-token) :comma)
-                        (recur args (assoc s-after-arg :tokens (rest (:tokens s-after-arg))))
-                        [args s-after-arg]))))
-                paren-token (first (:tokens state-after-args))]
-            (when-not (= (:type paren-token) :rparen)
-              (throw (ex-info "Expect ')' after arguments." {:line (:line paren-token)})))
-            (recur {:type :call, :callee callee, :paren paren-token, :arguments args}
-                   (assoc state-after-args :tokens (rest (:tokens state-after-args)))))
-          [callee current-state])))))
+        (cond (= (:type token) :lparen)
+              (let [state-after-lparen (assoc current-state :tokens (rest (:tokens current-state)))
+                    [args state-after-args]
+                    (if (= (:type (first (:tokens state-after-lparen))) :rparen)
+                      [[] state-after-lparen]
+                      (loop [args []
+                             s state-after-lparen]
+                        (let [[arg s-after-arg] (parse-expression s)
+                              args (conj args arg)
+                              next-token (first (:tokens s-after-arg))]
+                          (if (= (:type next-token) :comma)
+                            (recur args (assoc s-after-arg :tokens (rest (:tokens s-after-arg))))
+                            [args s-after-arg]))))
+                    paren-token (first (:tokens state-after-args))]
+                (when-not (= (:type paren-token) :rparen)
+                  (throw (ex-info "Expect ')' after arguments." {:line (:line paren-token)})))
+                (recur {:type :call, :callee callee, :paren paren-token, :arguments args}
+                       (assoc state-after-args :tokens (rest (:tokens state-after-args)))))
+              (= (:type token) :dot) (let [state-after-dot (assoc current-state :tokens (rest (:tokens current-state)))
+                                           name-token (first (:tokens state-after-dot))]
+                                       (when-not (= (:type name-token) :identifier)
+                                         (throw (ex-info "Expect property name after '.'." {:line (:line token)})))
+                                       (recur {:type :get, :object callee, :name name-token}
+                                              (assoc state-after-dot :tokens (rest (:tokens state-after-dot)))))
+              :else [callee current-state])))))
 
 (defn parse-unary
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
@@ -118,9 +126,11 @@
     (if (and token (= (:type token) :equal))
       (let [state-after-equal (assoc state-after-left :tokens (rest (:tokens state-after-left)))
             [value-expr state-after-value] (parse-assignment state-after-equal)]
-        (if (= (:type left-expr) :variable)
-          [{:type :assign, :name (:name left-expr), :value value-expr} state-after-value]
-          (throw (ex-info "Invalid assignment target." {:line (:line token)}))))
+        (cond (= (:type left-expr) :variable) [{:type :assign, :name (:name left-expr), :value value-expr}
+                                               state-after-value]
+              (= (:type left-expr) :get)
+              [{:type :set, :object (:object left-expr), :name (:name left-expr), :value value-expr} state-after-value]
+              :else (throw (ex-info "Invalid assignment target." {:line (:line token)}))))
       [left-expr state-after-left])))
 
 (defn parse-expression
@@ -247,7 +257,7 @@
 (defn- parse-function
   {:malli/schema [:=> [:cat ParserStateSchema :enum :function :method] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state kind]
-  (let [state (assoc state :tokens (rest (:tokens state)))
+  (let [state (if (= kind :function) (assoc state :tokens (rest (:tokens state))) state)
         name-token (first (:tokens state))]
     (when-not (= (:type name-token) :identifier)
       (throw (ex-info (str "Expect " (name kind) " name.") {:line (:line name-token)})))
@@ -295,11 +305,33 @@
         [{:type :return, :keyword return-token, :value expr}
          (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]))))
 
+(defn- parse-class-declaration
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [state (assoc state :tokens (rest (:tokens state)))
+        name-token (first (:tokens state))]
+    (when-not (= (:type name-token) :identifier)
+      (throw (ex-info "Expect class name." {:line (:line name-token)})))
+      (let [state (assoc state :tokens (rest (:tokens state)))
+            lbrace (first (:tokens state))]
+        (when-not (= (:type lbrace) :lbrace)
+          (throw (ex-info "Expect '{' before class body" {:line (:line lbrace)})))
+          (loop [methods []
+                 current-state (assoc state :tokens (rest (:tokens state)))]
+            (let [token (first (:tokens current-state))]
+              (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after class body."
+                                                                             {:line (:line token)}))
+                    (= (:type token) :rbrace) [{:type :class, :name name-token, :methods methods}
+                                               (assoc current-state :tokens (rest (:tokens current-state)))]
+                    :else (let [[method next-state] (parse-function current-state :method)]
+                            (recur (conj methods method) next-state))))))))
+
 (defn parse-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [token (first (:tokens state))]
-    (cond (= (:type token) :print) (parse-print-statement state)
+    (cond (= (:type token) :class) (parse-class-declaration state)
+          (= (:type token) :print) (parse-print-statement state)
           (= (:type token) :var) (parse-var-statement state)
           (= (:type token) :if) (parse-if-statement state)
           (= (:type token) :while) (parse-while-statement state)
