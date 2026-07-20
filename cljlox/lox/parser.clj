@@ -310,21 +310,19 @@
   [state]
   (let [state (assoc state :tokens (rest (:tokens state)))
         name-token (first (:tokens state))]
-    (when-not (= (:type name-token) :identifier)
-      (throw (ex-info "Expect class name." {:line (:line name-token)})))
-      (let [state (assoc state :tokens (rest (:tokens state)))
-            lbrace (first (:tokens state))]
-        (when-not (= (:type lbrace) :lbrace)
-          (throw (ex-info "Expect '{' before class body" {:line (:line lbrace)})))
-          (loop [methods []
-                 current-state (assoc state :tokens (rest (:tokens state)))]
-            (let [token (first (:tokens current-state))]
-              (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after class body."
-                                                                             {:line (:line token)}))
-                    (= (:type token) :rbrace) [{:type :class, :name name-token, :methods methods}
-                                               (assoc current-state :tokens (rest (:tokens current-state)))]
-                    :else (let [[method next-state] (parse-function current-state :method)]
-                            (recur (conj methods method) next-state))))))))
+    (when-not (= (:type name-token) :identifier) (throw (ex-info "Expect class name." {:line (:line name-token)})))
+    (let [state (assoc state :tokens (rest (:tokens state)))
+          lbrace (first (:tokens state))]
+      (when-not (= (:type lbrace) :lbrace) (throw (ex-info "Expect '{' before class body" {:line (:line lbrace)})))
+      (loop [methods []
+             current-state (assoc state :tokens (rest (:tokens state)))]
+        (let [token (first (:tokens current-state))]
+          (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after class body."
+                                                                         {:line (:line token)}))
+                (= (:type token) :rbrace) [{:type :class, :name name-token, :methods methods}
+                                           (assoc current-state :tokens (rest (:tokens current-state)))]
+                :else (let [[method next-state] (parse-function current-state :method)]
+                        (recur (conj methods method) next-state))))))))
 
 (defn parse-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
