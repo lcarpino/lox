@@ -28,6 +28,14 @@
   (analyse-expr context (:right expr))
   nil)
 
+(defmethod analyse-expr :get [context expr] (analyse-expr context (:object expr)) nil)
+
+(defmethod analyse-expr :set
+  [context expr]
+  (analyse-expr context (:value expr))
+  (analyse-expr context (:object expr))
+  nil)
+
 (defmethod analyse-expr :this
   [context expr]
   (when (= (:class-type context) :none)
@@ -40,7 +48,9 @@
 (defmethod analyse-stmt :class
   [context stmt]
   (let [new-context (assoc context :class-type :class)]
-    (doseq [m (:methods stmt)] (analyse-stmt (assoc new-context :function-type :method) m))
+    (doseq [m (:methods stmt)]
+      (let [func-type (if (= "init" (:lexeme (:name m))) :initialiser :method)]
+        (analyse-stmt (assoc new-context :function-type func-type) m)))
     nil))
 
 (defmethod analyse-stmt :function

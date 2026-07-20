@@ -26,6 +26,15 @@
   [state lexeme]
   (if (empty? (:scopes state)) state (update state :scopes #(cons (assoc (first %) lexeme true) (rest %)))))
 
+(defn- resolve-function-body
+  [state stmt func-type]
+  (let [saved-func-type (:function-type state)]
+    (with-scope [inner-state (assoc state :function-type func-type)]
+                (let [state-with-params (resolve-params inner-state (:params stmt))
+                      [resolved-body state-after-body] (resolve-statements state-with-params (:body stmt))]
+                  [(assoc stmt :body resolved-body)
+                   (assoc state-after-body :function-type saved-func-type)]))))
+
 (defn- resolve-local
   [state node name-token]
   (let [lexeme (:lexeme name-token)
@@ -82,6 +91,11 @@
                                 (recur (rest remaining-args) next-state (conj resolved-args r-arg)))))]
     [(assoc expr :callee callee :arguments args) state-args]))
 
+(defmethod resolve-expr :get
+  [state expr]
+  (let [[resolved-obj state-obj] (resolve-expr state (:object expr))]
+    [(assoc expr :object resolved-obj) state-obj]))
+
 (defmethod resolve-expr :grouping
   [state expr]
   (let [[inner state-inner] (resolve-expr state (:expression expr))] [(assoc expr :expression inner) state-inner]))
@@ -91,6 +105,18 @@
   (let [[left state-left] (resolve-expr state (:left expr))
         [right state-right] (resolve-expr state-left (:right expr))]
     [(assoc expr :left left :right right) state-right]))
+
+(defmethod resolve-expr :set
+  [state expr]
+  (let [[resolved-value state-val] (resolve-expr state (:value expr))
+        [resolved-obj state-obj] (resolve-expr state-val (:object expr))]
+    [(assoc expr :value resolved-value :object resolved-obj) state-obj]))
+
+(defmethod resolve-expr :this
+  [state expr]
+  (if (= (:class-type state) :none)
+    (throw (ex-info "Can't use 'this' outside of a class." {:token (:keyword expr)}))
+    [(resolve-local state expr (:keyword expr)) state]))
 
 (defmethod resolve-expr :unary
   [state expr]
@@ -112,6 +138,30 @@
               (let [[resolved-stmts state-after-stmts] (resolve-statements inner-state (:statements stmt))]
                 [(assoc stmt :statements resolved-stmts) state-after-stmts])))
 
+(defmethod resolve-stmt :class
+  [state stmt]
+  (let [class-name (:lexeme (:name stmt))
+        state-declared (declare-var state class-name)
+        state-defined (define-var state-declared class-name)
+        saved-class-type (:class-type state-defined)
+        ;; create a 'fake' scope for 'this' so methods can resolve it
+        state-with-this (-> state-defined
+                            (assoc :class-type :class)
+                            (update :scopes #(cons {"this" true} %)))
+        [resolved-methods _]
+        (loop [remaining-methods (:methods stmt)
+               current-state state-with-this
+               resolved-methods-acc []]
+          (if (empty? remaining-methods)
+            [resolved-methods-acc current-state]
+            (let [method (first remaining-methods)
+                  method-type (if (= "init" (:lexeme (:name method))) :initialiser :method)
+                  ;; resolve the method body without declaring its name in the scope
+                  [resolved-method _] (resolve-function-body current-state method method-type)]
+              (recur (rest remaining-methods) current-state (conj resolved-methods-acc resolved-method)))))]
+    [(assoc stmt :methods resolved-methods)
+     (assoc state-defined :class-type saved-class-type)]))
+
 (defmethod resolve-stmt :expr
   [state stmt]
   (let [[expr state-expr] (resolve-expr state (:expression stmt))] [(assoc stmt :expression expr) state-expr]))
@@ -121,10 +171,7 @@
   (let [func-name (:lexeme (:name stmt))
         state-declared (declare-var state func-name)
         state-defined (define-var state-declared func-name)]
-    (with-scope [inner-state state-defined]
-                (let [state-with-params (resolve-params inner-state (:params stmt))
-                      [resolved-body state-after-body] (resolve-statements state-with-params (:body stmt))]
-                  [(assoc stmt :body resolved-body) state-after-body]))))
+    (resolve-function-body state-defined stmt :function)))
 
 (defmethod resolve-stmt :if
   [state stmt]
