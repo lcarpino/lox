@@ -26,15 +26,6 @@
   [state lexeme]
   (if (empty? (:scopes state)) state (update state :scopes #(cons (assoc (first %) lexeme true) (rest %)))))
 
-(defn- resolve-function-body
-  [state stmt func-type]
-  (let [saved-func-type (:function-type state)]
-    (with-scope [inner-state (assoc state :function-type func-type)]
-                (let [state-with-params (resolve-params inner-state (:params stmt))
-                      [resolved-body state-after-body] (resolve-statements state-with-params (:body stmt))]
-                  [(assoc stmt :body resolved-body)
-                   (assoc state-after-body :function-type saved-func-type)]))))
-
 (defn- resolve-local
   [state node name-token]
   (let [lexeme (:lexeme name-token)
@@ -65,6 +56,15 @@
       [resolved current-state]
       (let [[r-stmt next-state] (resolve-stmt current-state (first stmts))]
         (recur (rest stmts) next-state (conj resolved r-stmt))))))
+
+(defn- resolve-function-body
+  [state stmt func-type]
+  (let [saved-func-type (:function-type state)]
+    (with-scope [inner-state (assoc state :function-type func-type)]
+                (let [state-with-params (resolve-params inner-state (:params stmt))
+                      [resolved-body state-after-body] (resolve-statements state-with-params (:body stmt))]
+                  [(assoc stmt :body resolved-body)
+                   (assoc state-after-body :function-type saved-func-type)]))))
 
 (defmethod resolve-expr :assign
   [state expr]
