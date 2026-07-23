@@ -93,8 +93,7 @@
 
 (defmethod resolve-expr :get
   [state expr]
-  (let [[resolved-obj state-obj] (resolve-expr state (:object expr))]
-    [(assoc expr :object resolved-obj) state-obj]))
+  (let [[resolved-obj state-obj] (resolve-expr state (:object expr))] [(assoc expr :object resolved-obj) state-obj]))
 
 (defmethod resolve-expr :grouping
   [state expr]
