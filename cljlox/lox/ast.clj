@@ -25,6 +25,11 @@
         [:callee [:ref ::expr]]
         [:paren TokenSchema]
         [:arguments [:sequential [:ref ::expr]]]]]
+      [:get
+       [:map
+        [:type [:= :get]]
+        [:object [:ref ::expr]]
+        [:name TokenSchema]]]
       [:grouping
        [:map
         [:type [:= :grouping]]
@@ -39,6 +44,12 @@
         [:op TokenSchema]
         [:left [:ref ::expr]]
         [:right [:ref ::expr]]]]
+      [:set
+       [:map
+        [:type [:= :set]]
+        [:object [:ref ::expr]]
+        [:name TokenSchema]
+        [:value [:ref ::expr]]]]
       [:this
        [:map
         [:type [:= :this]]
