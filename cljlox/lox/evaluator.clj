@@ -15,6 +15,40 @@
   {:malli/schema [:=> [:cat ast/StmtSchema environment/EnvSchema] [:or environment/EnvSchema ReturnSchema]]}
   (fn [stmt env] (:type stmt)))
 
+(defn- make-function
+  [stmt closure-env]
+  (let [is-init? (and (= "init" (:lexeme (:name stmt))) (contains? (first closure-env) "this"))
+        invoke (fn [args caller-env]
+                 (let [stitched-env (concat (drop-last closure-env) [(last caller-env)])
+                       base-env (cons {} stitched-env)
+                       env-with-params (loop [env base-env
+                                              params (:params stmt)
+                                              arg-vals args]
+                                         (if (empty? params)
+                                           env
+                                           (recur (environment/define env (first params) (first arg-vals))
+                                                  (rest params)
+                                                  (rest arg-vals))))]
+                   (loop [current-env env-with-params
+                          stmts (:body stmt)]
+                     (if (empty? stmts)
+                       (if is-init? (memory/read-store (get (first closure-env) "this")) nil)
+                       (let [result (execute (first stmts) current-env)]
+                         (if (and (map? result) (= (:type result) :return-value))
+                           (if is-init? (memory/read-store (get (first closure-env) "this")) (:value result))
+                           (recur result (rest stmts))))))))]
+    {:type        :lox-function,
+     :arity       (count (:params stmt)),
+     :stmt        stmt,
+     :closure-env closure-env,
+     :call-fn     invoke}))
+
+(defn- bind-method
+  [method instance]
+  (let [env-with-new-scope (cons {} (:closure-env method))
+        bound-env (environment/define env-with-new-scope {:lexeme "this"} instance)]
+    (make-function (:stmt method) bound-env)))
+
 (defmethod evaluate :assign
   [expr env]
   (let [value (evaluate (:value expr) env)
@@ -42,13 +76,40 @@
 (defmethod evaluate :call
   [expr env]
   (let [callee (evaluate (:callee expr) env)
-        args (map #(evaluate % env) (:arguments expr))]
-    (if-not (and (map? callee) (= (:type callee) :lox-function))
-      (throw (ex-info "Can only call functions and classes." {:token (:paren expr)}))
-      (if-not (= (count args) (:arity callee))
-        (throw (ex-info (str "Expected " (:arity callee) " arguments but got " (count args) ".")
-                        {:token (:paren expr)}))
-        ((:call-fn callee) args env)))))
+        args (loop [remaining-args (:arguments expr)
+                    evaluated-args []]
+               (if (empty? remaining-args)
+                 evaluated-args
+                 (recur (rest remaining-args) (conj evaluated-args (evaluate (first remaining-args) env)))))
+        paren-token (:paren expr)]
+    (cond (and (map? callee) (= (:type callee) :lox-function))
+          (if-not (= (count args) (:arity callee))
+            (throw (ex-info (str "Expected " (:arity callee) " arguments but got " (count args) ".")
+                            {:token paren-token}))
+            ((:call-fn callee) args env))
+          (and (map? callee) (= (:type callee) :lox-class))
+          (let [init-method (get-in callee [:methods "init"])
+                arity (if init-method (:arity init-method) 0)]
+            (if-not (= (count args) arity)
+              (throw (ex-info (str "Expected " arity " arguments but got " (count args) ".") {:token paren-token}))
+              (let [fields-address (memory/alloc! {})
+                    instance {:type :lox-instance, :class callee, :fields-address fields-address}]
+                (when init-method ((:call-fn (bind-method init-method instance)) args env))
+                instance)))
+          :else (throw (ex-info "Can only call functions and classes." {:token paren-token})))))
+
+(defmethod evaluate :get
+  [expr env]
+  (let [obj (evaluate (:object expr) env)
+        name-lexeme (:lexeme (:name expr))]
+    (if (and (map? obj) (= (:type obj) :lox-instance))
+      (let [fields (memory/read-store (:fields-address obj))]
+        (if (contains? fields name-lexeme)
+          (get fields name-lexeme)
+          (if-let [method (get-in obj [:class :methods name-lexeme])]
+            (bind-method method obj)
+            (throw (ex-info (str "Undefined property '" name-lexeme "'.") {:token (:name expr)})))))
+      (throw (ex-info "Only instances have properties." {:token (:name expr)})))))
 
 (defmethod evaluate :grouping [expr env] (evaluate (:expression expr) env))
 
@@ -62,6 +123,22 @@
       (if (truthy? left-val) left-val (evaluate (:right expr) env))
       (if (not (truthy? left-val)) left-val (evaluate (:right expr) env)))))
 
+(defmethod evaluate :set
+  [expr env]
+  (let [obj (evaluate (:object expr) env)]
+    (if (and (map? obj) (= (:type obj) :lox-instance))
+      (let [value (evaluate (:value expr) env)
+            name-lexeme (:lexeme (:name expr))
+            current-fields (memory/read-store (:fields-address obj))
+            updated-fields (assoc current-fields name-lexeme value)]
+        (memory/write-store! (:fields-address obj) updated-fields)
+        value)
+      (throw (ex-info "Only instances have fields." {:token (:name expr)})))))
+
+(defmethod evaluate :this
+  [expr env]
+  (let [address (environment/resolve-address env (:keyword expr) (:depth expr))] (memory/read-store address)))
+
 (defmethod evaluate :unary
   [expr env]
   (let [right (evaluate (:right expr) env)
@@ -74,25 +151,6 @@
   [expr env]
   (let [address (environment/resolve-address env (:name expr) (:depth expr))] (memory/read-store address)))
 
-(defn- make-function
-  [stmt closure-env]
-  {:type    :lox-function,
-   :arity   (count (:params stmt)),
-   :call-fn (fn [args caller-env]
-              (let [stitched-env (concat (drop-last closure-env) [(last caller-env)])
-                    env-with-params (reduce (fn [env [param-token arg-val]]
-                                              (environment/define env param-token arg-val))
-                                            (cons {} stitched-env)
-                                            (map vector (:params stmt) args))]
-                (loop [current-env env-with-params
-                       stmts (:body stmt)]
-                  (if (empty? stmts)
-                    nil
-                    (let [result (execute (first stmts) current-env)]
-                      (if (and (map? result) (= (:type result) :return-value))
-                        (:value result)
-                        (recur result (rest stmts))))))))})
-
 (defmethod execute :block
   [stmt env]
   (let [inner-env (cons {} env)]
@@ -103,6 +161,23 @@
         (let [s (first remaining-stmts)
               result (execute s current-env)]
           (if (and (map? result) (= (:type result) :return-value)) result (recur result (rest remaining-stmts))))))))
+
+(defmethod execute :class
+  [stmt env]
+  (let [lexeme (:lexeme (:name stmt))
+        address (memory/alloc! nil)
+        new-env (cons (assoc (first env) lexeme address) (rest env))
+        methods (loop [remaining (:methods stmt)
+                       acc {}]
+                  (if (empty? remaining)
+                    acc
+                    (let [method (first remaining)
+                          method-name (:lexeme (:name method))
+                          func (make-function method new-env)]
+                      (recur (rest remaining) (assoc acc method-name func)))))
+        lox-class {:type :lox-class, :name lexeme, :methods methods}]
+    (memory/write-store! address lox-class)
+    new-env))
 
 (defmethod execute :expr [stmt env] (evaluate (:expression stmt) env) env)
 
