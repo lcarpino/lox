@@ -10,11 +10,13 @@
             [lox.resolver :as resolver]))
 
 (defn- run
-  [source env]
+  [source env repl?]
   (let [tokens (scanner/scan source)
         scanner-errors (filter #(= (:type %) :error) tokens)]
     (if (seq scanner-errors)
-      (do (doseq [err scanner-errors] (println (str "[line " (:line err) "] Error: " (:literal err)))) env)
+      (do (binding [*out* *err*]
+            (doseq [err scanner-errors] (println (str "[line " (:line err) "] Error: " (:literal err)))))
+          (if repl? env (System/exit 65)))
       (try (let [[statements _] (parser/parse {:tokens tokens})
                  validated-statements (analyser/analyse statements)
                  resolved-statements (resolver/resolve validated-statements)]
@@ -27,17 +29,20 @@
                    (recur result (rest remaining-stmts))))))
            (catch Exception e
              (let [data (ex-data e)]
-               (cond (:line data) (println (str "[line " (:line data) "] Error at parser: " (.getMessage e)))
-                     (:token data) (println
-                                    (str "Runtime Error: " (.getMessage e) "\n[line " (:line (:token data)) "]"))
-                     :else (println "System Error: " (.getMessage e)))
-               env))))))
+               (binding [*out* *err*]
+                 (cond (:token data) (do (println (str (.getMessage e) "\n[line " (:line (:token data)) "]"))
+                                         (if repl? env (System/exit 70)))
+                       (:line data) (do (let [lexeme (:lexeme data)
+                                              where (if lexeme (str " at '" lexeme "'") "")]
+                                          (println (str "[line " (:line data) "] Error" where ": " (.getMessage e))))
+                                        (if repl? env (System/exit 65)))
+                       :else (do (println "System Error: " (.getMessage e)) (if repl? env (System/exit 1)))))))))))
 
 (defn- run-file
   [path]
   (let [file (io/file path)]
     (if (.exists file)
-      (do (memory/empty-store!) (run (slurp file) (native/create-global-env)))
+      (do (memory/empty-store!) (run (slurp file) (native/create-global-env) false))
       (println "File not found: " path))))
 
 (defn- run-prompt
@@ -46,12 +51,13 @@
   (loop [env (native/create-global-env)]
     (print "> ")
     (flush)
-    (when-some [line (read-line)] (recur (run line env)))))
+    (when-some [line (read-line)] (recur (run line env true)))))
 
 (defn -main
   [& args]
   (try (let [arglen (count args)]
-         (cond (> arglen 1) (println "Usage: cljlox [script]")
+         (cond (> arglen 1) (do (println "Usage: cljlox [script]")
+                                (System/exit 64))
                (= arglen 1) (run-file (first args))
                :else (run-prompt)))
        (catch Exception e (println (format "Fatal error: %s" (ex-message e))))))

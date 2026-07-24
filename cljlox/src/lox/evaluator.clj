@@ -5,6 +5,16 @@
 
 (def ReturnSchema [:map [:type [:= :return-value]] [:value memory/ValueSchema]])
 
+(defn- stringify
+  [val]
+  (cond (nil? val) "nil"
+        (number? val) (if (== val (Math/floor val)) (format "%d" (long val)) (str val))
+        (and (map? val) (= (:type val) :lox-class)) (:name val)
+        (and (map? val) (= (:type val) :lox-instance)) (str (get-in val [:class :name]) " instance")
+        (and (map? val) (= (:type val) :lox-function)) (str "<fn " (:lexeme (:name (:stmt val))) ">")
+        (and (map? val) (= (:type val) :native-function)) "<native fn>"
+        :else (str val)))
+
 (defn- truthy? [val] (not (or (nil? val) (false? val))))
 
 (defmulti evaluate
@@ -226,7 +236,7 @@
 (defmethod execute :print
   [stmt env]
   (let [value (evaluate (:expression stmt) env)]
-    (println (if (nil? value) "nil" (str value)))
+    (println (if (nil? value) "nil" (stringify value)))
     env))
 
 (defmethod execute :return
