@@ -1,0 +1,27 @@
+class Animal {
+  init() {}
+
+  speak() {
+    print "The animal makes a generic random noise!";
+  }
+}
+
+class Dog < Animal {
+  init(name) {
+    this.name = name;
+  }
+
+  speak() {
+    super.speak();
+    print "Woof! says " + this.name;
+  }
+}
+
+var dog = Dog("Fido");
+
+{
+  var dog = Dog("Rover");
+  dog.speak();
+}
+
+dog.speak();
