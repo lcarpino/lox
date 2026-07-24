@@ -1,7 +1,7 @@
 (ns lox.core
+  (:gen-class)
   (:require [clojure.java.io :as io]
             [lox.analyser :as analyser]
-            [lox.environment :as environment]
             [lox.evaluator :as evaluator]
             [lox.memory :as memory]
             [lox.native :as native]
