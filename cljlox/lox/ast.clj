@@ -50,6 +50,12 @@
         [:object [:ref ::expr]]
         [:name TokenSchema]
         [:value [:ref ::expr]]]]
+      [:super
+       [:map
+        [:type [:= :super]]
+        [:keyword TokenSchema]
+        [:method TokenSchema]
+        [:depth {:optional true} :int]]]
       [:this
        [:map
         [:type [:= :this]]
@@ -80,6 +86,7 @@
        [:map
         [:type [:= :class]]
         [:name TokenSchema]
+        [:superclass [:maybe ExprSchema]]
         [:methods [:sequential [:ref ::stmt]]]]]
       [:expr
        [:map

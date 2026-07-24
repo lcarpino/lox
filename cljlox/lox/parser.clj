@@ -26,6 +26,16 @@
       (#{:number :string} (:type token)) [{:type :literal, :value (:literal token)} next-state]
       ;; --- keywords ---
       (= (:type token) :this) [{:type :this, :keyword token} next-state]
+      ;; --- super ---
+      (= (:type token) :super) (let [dot-token (first (:tokens next-state))]
+                                 (when-not (= (:type dot-token) :dot)
+                                   (throw (ex-info "Expect '.' after super." {:line (:line token)})))
+                                 (let [state-after-dot (assoc next-state :tokens (rest (:tokens next-state)))
+                                       method-token (first (:tokens state-after-dot))]
+                                   (when-not (= (:type method-token) :identifier)
+                                     (throw (ex-info "Expect superclass method name." {:line (:line dot-token)})))
+                                   [{:type :super, :keyword token, :method method-token}
+                                    (assoc state-after-dot :tokens (rest (:tokens state-after-dot)))]))
       ;; --- variables ---
       (= (:type token) :identifier) [{:type :variable, :name token} next-state]
       ;; --- grouping ---
@@ -311,15 +321,26 @@
   (let [state (assoc state :tokens (rest (:tokens state)))
         name-token (first (:tokens state))]
     (when-not (= (:type name-token) :identifier) (throw (ex-info "Expect class name." {:line (:line name-token)})))
-    (let [state (assoc state :tokens (rest (:tokens state)))
-          lbrace (first (:tokens state))]
-      (when-not (= (:type lbrace) :lbrace) (throw (ex-info "Expect '{' before class body" {:line (:line lbrace)})))
+    (let [state-after-name (assoc state :tokens (rest (:tokens state)))
+          maybe-less (first (:tokens state-after-name))
+          [superclass state-after-super] (if (= (:type maybe-less) :less)
+                                           (let [state-after-less
+                                                 (assoc state-after-name :tokens (rest (:tokens state-after-name)))
+                                                 super-name (first (:tokens state-after-less))]
+                                             (when-not (= (:type super-name) :identifier)
+                                               (throw (ex-info "Expect superclass name." {:line (:line maybe-less)})))
+                                             [{:type :variable, :name super-name}
+                                              (assoc state-after-less :tokens (rest (:tokens state-after-less)))])
+                                           [nil state-after-name])
+          lbrace (first (:tokens state-after-super))]
+      (when-not (= (:type lbrace) :lbrace)
+        (throw (ex-info "Expect '{' before class body" {:line (:line (or lbrace name-token))})))
       (loop [methods []
-             current-state (assoc state :tokens (rest (:tokens state)))]
+             current-state (assoc state-after-super :tokens (rest (:tokens state-after-super)))]
         (let [token (first (:tokens current-state))]
           (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after class body."
                                                                          {:line (:line token)}))
-                (= (:type token) :rbrace) [{:type :class, :name name-token, :methods methods}
+                (= (:type token) :rbrace) [{:type :class, :name name-token, :superclass superclass, :methods methods}
                                            (assoc current-state :tokens (rest (:tokens current-state)))]
                 :else (let [[method next-state] (parse-function current-state :method)]
                         (recur (conj methods method) next-state))))))))
