@@ -111,6 +111,14 @@
         [resolved-obj state-obj] (resolve-expr state-val (:object expr))]
     [(assoc expr :value resolved-value :object resolved-obj) state-obj]))
 
+(defmethod resolve-expr :super
+  [state expr]
+  (let [class-type (:class-type state)]
+    (cond (= class-type :none) (throw (ex-info "Can't use 'super' outside of a class." {:token (:keyword expr)}))
+          (not (= class-type :subclass)) (throw (ex-info "Can't use 'super' in a class with no superclass."
+                                                         {:token (:keyword expr)}))
+          :else [(resolve-local state expr (:keyword expr)) state])))
+
 (defmethod resolve-expr :this
   [state expr]
   (if (= (:class-type state) :none)
@@ -143,23 +151,31 @@
         state-declared (declare-var state class-name)
         state-defined (define-var state-declared class-name)
         saved-class-type (:class-type state-defined)
-        ;; create a 'fake' scope for 'this' so methods can resolve it
-        state-with-this (-> state-defined
-                            (assoc :class-type :class)
-                            (update :scopes #(cons {"this" true} %)))
-        [resolved-methods _]
-        (loop [remaining-methods (:methods stmt)
-               current-state state-with-this
-               resolved-methods-acc []]
-          (if (empty? remaining-methods)
-            [resolved-methods-acc current-state]
-            (let [method (first remaining-methods)
-                  method-type (if (= "init" (:lexeme (:name method))) :initialiser :method)
-                  ;; resolve the method body without declaring its name in the scope
-                  [resolved-method _] (resolve-function-body current-state method method-type)]
-              (recur (rest remaining-methods) current-state (conj resolved-methods-acc resolved-method)))))]
-    [(assoc stmt :methods resolved-methods)
-     (assoc state-defined :class-type saved-class-type)]))
+        superclass (:superclass stmt)]
+    (when (and superclass (= class-name (:lexeme (:name superclass))))
+      (throw (ex-info "A class can't inherit from itself." {:token (:name superclass)})))
+    (let [[resolved-superclass state-super-resolved]
+          (if superclass (resolve-expr state-defined superclass) [nil state-defined])
+          ;; create a 'fake' scope for 'super'
+          state-with-super
+          (if superclass (update state-super-resolved :scopes #(cons {"super" true} %)) state-super-resolved)
+          ;; create a 'fake' scope for 'this' so methods can resolve it
+          state-with-this (-> state-with-super
+                              (assoc :class-type (if superclass :subclass :class))
+                              (update :scopes #(cons {"this" true} %)))
+          [resolved-methods _]
+          (loop [remaining-methods (:methods stmt)
+                 current-state state-with-this
+                 resolved-methods-acc []]
+            (if (empty? remaining-methods)
+              [resolved-methods-acc current-state]
+              (let [method (first remaining-methods)
+                    method-type (if (= "init" (:lexeme (:name method))) :initialiser :method)
+                    ;; resolve the method body without declaring its name in the scope
+                    [resolved-method _] (resolve-function-body current-state method method-type)]
+                (recur (rest remaining-methods) current-state (conj resolved-methods-acc resolved-method)))))]
+      [(assoc stmt :superclass resolved-superclass :methods resolved-methods)
+       (assoc state-super-resolved :class-type saved-class-type)])))
 
 (defmethod resolve-stmt :expr
   [state stmt]
