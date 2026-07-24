@@ -93,6 +93,11 @@
             (throw (ex-info (str "Expected " (:arity callee) " arguments but got " (count args) ".")
                             {:token paren-token}))
             ((:call-fn callee) args env))
+          (and (map? callee) (= (:type callee) :native-function))
+          (if-not (= (count args) (:arity callee))
+            (throw (ex-info (str "Expected " (:arity callee) " arguments but got " (count args) ".")
+                            {:token paren-token}))
+            ((:call-fn callee) args))
           (and (map? callee) (= (:type callee) :lox-class))
           (let [init-method (find-method callee "init")
                 arity (if init-method (:arity init-method) 0)]

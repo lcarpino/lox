@@ -4,6 +4,7 @@
             [lox.environment :as environment]
             [lox.evaluator :as evaluator]
             [lox.memory :as memory]
+            [lox.native :as native]
             [lox.parser :as parser]
             [lox.scanner :as scanner]
             [lox.resolver :as resolver]))
@@ -36,13 +37,13 @@
   [path]
   (let [file (io/file path)]
     (if (.exists file)
-      (do (memory/empty-store!) (run (slurp file) (environment/empty-env)))
+      (do (memory/empty-store!) (run (slurp file) (native/create-global-env)))
       (println "File not found: " path))))
 
 (defn- run-prompt
   []
   (memory/empty-store!)
-  (loop [env (environment/empty-env)]
+  (loop [env (native/create-global-env)]
     (print "> ")
     (flush)
     (when-some [line (read-line)] (recur (run line env)))))
