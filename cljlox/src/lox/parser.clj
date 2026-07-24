@@ -11,6 +11,7 @@
 (def ParserOutputSchema [:sequential ast/StmtSchema])
 
 (declare parse-expression)
+(declare parse-declaration)
 (declare parse-statement)
 
 (defn parse-primary
@@ -157,7 +158,7 @@
       (cond (or (nil? token) (= (:type token) :eof)) (throw (ex-info "Expect '}' after block." {:line (:line token)}))
             (= (:type token) :rbrace) [{:type :block, :statements statements}
                                        (assoc current-state :tokens (rest (:tokens current-state)))]
-            :else (let [[statement next-state] (parse-statement current-state)]
+            :else (let [[statement next-state] (parse-declaration current-state)]
                     (recur (conj statements statement) next-state))))))
 
 (defn- parse-print-statement
@@ -345,17 +346,23 @@
                 :else (let [[method next-state] (parse-function current-state :method)]
                         (recur (conj methods method) next-state))))))))
 
-(defn parse-statement
+(defn parse-declaration
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [token (first (:tokens state))]
     (cond (= (:type token) :class) (parse-class-declaration state)
-          (= (:type token) :print) (parse-print-statement state)
+          (= (:type token) :fun) (parse-function state :function)
           (= (:type token) :var) (parse-var-statement state)
+          :else (parse-statement state))))
+
+(defn parse-statement
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  [state]
+  (let [token (first (:tokens state))]
+    (cond (= (:type token) :print) (parse-print-statement state)
           (= (:type token) :if) (parse-if-statement state)
           (= (:type token) :while) (parse-while-statement state)
           (= (:type token) :for) (parse-for-statement state)
-          (= (:type token) :fun) (parse-function state :function)
           (= (:type token) :return) (parse-return-statement state)
           (= (:type token) :lbrace) (parse-block (assoc state :tokens (rest (:tokens state))))
           :else (parse-expr-statement state))))
@@ -368,4 +375,4 @@
     (let [token (first (:tokens state))]
       (if (or (nil? token) (= (:type token) :eof))
         [statements state]
-        (let [[stmt next-state] (parse-statement state)] (recur (conj statements stmt) next-state))))))
+        (let [[stmt next-state] (parse-declaration state)] (recur (conj statements stmt) next-state))))))
