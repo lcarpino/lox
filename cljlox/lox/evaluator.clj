@@ -49,6 +49,12 @@
         bound-env (environment/define env-with-new-scope {:lexeme "this"} instance)]
     (make-function (:stmt method) bound-env)))
 
+(defn- find-method
+  [lox-class name-lexeme]
+  (if-let [method (get-in lox-class [:methods name-lexeme])]
+    method
+    (when-let [superclass (:superclass lox-class)] (find-method superclass name-lexeme))))
+
 (defmethod evaluate :assign
   [expr env]
   (let [value (evaluate (:value expr) env)
@@ -88,7 +94,7 @@
                             {:token paren-token}))
             ((:call-fn callee) args env))
           (and (map? callee) (= (:type callee) :lox-class))
-          (let [init-method (get-in callee [:methods "init"])
+          (let [init-method (find-method callee "init")
                 arity (if init-method (:arity init-method) 0)]
             (if-not (= (count args) arity)
               (throw (ex-info (str "Expected " arity " arguments but got " (count args) ".") {:token paren-token}))
@@ -106,7 +112,7 @@
       (let [fields (memory/read-store (:fields-address obj))]
         (if (contains? fields name-lexeme)
           (get fields name-lexeme)
-          (if-let [method (get-in obj [:class :methods name-lexeme])]
+          (if-let [method (find-method (:class obj) name-lexeme)]
             (bind-method method obj)
             (throw (ex-info (str "Undefined property '" name-lexeme "'.") {:token (:name expr)})))))
       (throw (ex-info "Only instances have properties." {:token (:name expr)})))))
@@ -134,6 +140,17 @@
         (memory/write-store! (:fields-address obj) updated-fields)
         value)
       (throw (ex-info "Only instances have fields." {:token (:name expr)})))))
+
+(defmethod evaluate :super
+  [expr env]
+  (let [distance (:depth expr)
+        superclass (memory/read-store (environment/resolve-address env {:lexeme "super"} distance))
+        instance (memory/read-store (environment/resolve-address env {:lexeme "this"} (dec distance)))
+        method-name (:lexeme (:method expr))
+        method (find-method superclass method-name)]
+    (if method
+      (bind-method method instance)
+      (throw (ex-info (str "Undefined property '" method-name "'.") {:token (:method expr)})))))
 
 (defmethod evaluate :this
   [expr env]
@@ -164,20 +181,25 @@
 
 (defmethod execute :class
   [stmt env]
-  (let [lexeme (:lexeme (:name stmt))
-        address (memory/alloc! nil)
-        new-env (cons (assoc (first env) lexeme address) (rest env))
-        methods (loop [remaining (:methods stmt)
-                       acc {}]
-                  (if (empty? remaining)
-                    acc
-                    (let [method (first remaining)
-                          method-name (:lexeme (:name method))
-                          func (make-function method new-env)]
-                      (recur (rest remaining) (assoc acc method-name func)))))
-        lox-class {:type :lox-class, :name lexeme, :methods methods}]
-    (memory/write-store! address lox-class)
-    new-env))
+  (let [superclass-expr (:superclass stmt)
+        superclass (when superclass-expr (evaluate superclass-expr env))]
+    (when (and superclass (not= (:type superclass) :lox-class))
+      (throw (ex-info "Superclass must be a class." {:token (:name superclass-expr)})))
+    (let [lexeme (:lexeme (:name stmt))
+          address (memory/alloc! nil)
+          new-env (cons (assoc (first env) lexeme address) (rest env))
+          closure-env (if superclass (cons {"super" (memory/alloc! superclass)} new-env) new-env)
+          methods (loop [remaining (:methods stmt)
+                         acc {}]
+                    (if (empty? remaining)
+                      acc
+                      (let [method (first remaining)
+                            method-name (:lexeme (:name method))
+                            func (make-function method closure-env)]
+                        (recur (rest remaining) (assoc acc method-name func)))))
+          lox-class {:type :lox-class, :name lexeme, :superclass superclass, :methods methods}]
+      (memory/write-store! address lox-class)
+      new-env)))
 
 (defmethod execute :expr [stmt env] (evaluate (:expression stmt) env) env)
 
