@@ -216,7 +216,7 @@
   [stmt env]
   (let [superclass-expr (:superclass stmt)
         superclass (when superclass-expr (evaluate superclass-expr env))]
-    (when (and superclass (not= (:type superclass) :lox-class))
+    (when (and superclass-expr (not= (:type superclass) :lox-class))
       (evaluator-error (:name superclass-expr) "Superclass must be a class."))
     (let [lexeme (:lexeme (:name stmt))
           address (memory/alloc! nil)

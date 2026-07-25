@@ -334,7 +334,7 @@
                                                  (assoc state-after-name :tokens (rest (:tokens state-after-name)))
                                                  super-name (first (:tokens state-after-less))]
                                              (when-not (= (:type super-name) :identifier)
-                                               (parse-error maybe-less "Expect superclass name."))
+                                               (parse-error super-name "Expect superclass name."))
                                              [{:type :variable, :name super-name}
                                               (assoc state-after-less :tokens (rest (:tokens state-after-less)))])
                                            [nil state-after-name])
