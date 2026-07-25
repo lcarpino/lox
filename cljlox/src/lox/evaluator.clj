@@ -16,7 +16,12 @@
 (defn- stringify
   [val]
   (cond (nil? val) "nil"
-        (number? val) (if (== val (Math/floor val)) (format "%d" (long val)) (str val))
+        ;; NOTE: this is actually necessary because in Clojure 0.0 == +0.0 == -0.0
+        (number? val) (if (== val 0.0)
+                        (if (= (Double/doubleToRawLongBits val) (Double/doubleToRawLongBits -0.0))
+                          "-0"
+                          (if (== val (Math/floor val)) (format "%d" (long val)) (str val)))
+                        (if (== val (Math/floor val)) (format "%d" (long val)) (str val)))
         (and (map? val) (= (:type val) :lox-class)) (:name val)
         (and (map? val) (= (:type val) :lox-instance)) (str (get-in val [:class :name]) " instance")
         (and (map? val) (= (:type val) :lox-function)) (str "<fn " (:lexeme (:name (:stmt val))) ">")
