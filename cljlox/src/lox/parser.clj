@@ -256,23 +256,31 @@
           init-token (first (:tokens state))
           [init-stmt state] (cond (= (:type init-token) :semicolon) [nil (assoc state :tokens (rest (:tokens state)))]
                                   (= (:type init-token) :var) (parse-var-statement state)
-                                  :else (parse-expr-statement state))
+                                  :else (let [[expr s-after-expr] (parse-expression state)
+                                              semi (first (:tokens s-after-expr))]
+                                          (when-not (= (:type semi) :semicolon)
+                                            (parse-error semi "Expect ';' after expression."))
+                                          [{:type :expr, :expression expr}
+                                           (assoc s-after-expr :tokens (rest (:tokens s-after-expr)))]))
           cond-token (first (:tokens state))
-          [cond-expr state] (if (= (:type cond-token) :semicolon) [nil state] (parse-expression state))
-          semi-token (first (:tokens state))]
-      (when-not (= (:type semi-token) :semicolon) (parse-error semi-token "Expect ';' after loop condition."))
+          [cond-expr state] (if (= (:type cond-token) :semicolon)
+                              [nil (assoc state :tokens (rest (:tokens state)))]
+                              (let [[expr s-after-expr] (parse-expression state)
+                                    semi (first (:tokens s-after-expr))]
+                                (when-not (= (:type semi) :semicolon)
+                                  (parse-error semi "Expect ';' after loop condition."))
+                                [expr (assoc s-after-expr :tokens (rest (:tokens s-after-expr)))]))
+          inc-token (first (:tokens state))
+          [inc-expr state] (if (= (:type inc-token) :rparen) [nil state] (parse-expression state))
+          rparen (first (:tokens state))]
+      (when-not (= (:type rparen) :rparen) (parse-error rparen "Expect ')' after for clauses."))
       (let [state (assoc state :tokens (rest (:tokens state)))
-            inc-token (first (:tokens state))
-            [inc-expr state] (if (= (:type inc-token) :rparen) [nil state] (parse-expression state))
-            rparen (first (:tokens state))]
-        (when-not (= (:type rparen) :rparen) (parse-error rparen "Expect ')' after for clauses."))
-        (let [state (assoc state :tokens (rest (:tokens state)))
-              [body state] (parse-statement state)
-              body-with-inc (if inc-expr {:type :block, :statements [body {:type :expr, :expression inc-expr}]} body)
-              loop-cond (if cond-expr cond-expr {:type :literal, :value true})
-              while-stmt {:type :while, :condition loop-cond, :body body-with-inc}
-              final-stmt (if init-stmt {:type :block, :statements [init-stmt while-stmt]} while-stmt)]
-          [final-stmt state])))))
+            [body state] (parse-statement state)
+            body-with-inc (if inc-expr {:type :block, :statements [body {:type :expr, :expression inc-expr}]} body)
+            loop-cond (if cond-expr cond-expr {:type :literal, :value true})
+            while-stmt {:type :while, :condition loop-cond, :body body-with-inc}
+            final-stmt (if init-stmt {:type :block, :statements [init-stmt while-stmt]} while-stmt)]
+        [final-stmt state]))))
 
 (defn- parse-function
   {:malli/schema [:=> [:cat ParserStateSchema :enum :function :method] [:tuple ast/StmtSchema ParserStateSchema]]}
