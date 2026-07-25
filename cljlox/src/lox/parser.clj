@@ -70,6 +70,8 @@
                       [[] state-after-lparen]
                       (loop [args []
                              s state-after-lparen]
+                        (when (>= (count args) 255)
+                          (parse-error (first (:tokens s)) "Can't have more than 255 arguments."))
                         (let [[arg s-after-arg] (parse-expression s)
                               args (conj args arg)
                               next-token (first (:tokens s-after-arg))]
@@ -285,8 +287,11 @@
               [[] state]
               (loop [params []
                      s state]
+                (when (>= (count params) 255)
+                  (parse-error (first (:tokens s)) "Can't have more than 255 parameters."))
                 (let [param-token (first (:tokens s))]
-                  (when-not (= (:type param-token) :identifier) (parse-error param-token "Expect parameter name."))
+                  (when-not (= (:type param-token) :identifier)
+                    (parse-error param-token "Expect parameter name."))
                   (let [params (conj params param-token)
                         s-after-param (assoc s :tokens (rest (:tokens s)))
                         next-token (first (:tokens s-after-param))]
