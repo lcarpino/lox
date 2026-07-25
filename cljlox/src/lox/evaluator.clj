@@ -1,23 +1,17 @@
 (ns lox.evaluator
   (:require [lox.ast :as ast]
             [lox.environment :as environment]
+            [lox.error :as error]
             [lox.memory :as memory]))
 
 (def ReturnSchema [:map [:type [:= :return-value]] [:value memory/ValueSchema]])
 
 (def ^:private numeric-binary-ops #{:minus :slash :star :greater :greater-equal :less :less-equal})
 
-(defn- evaluator-error
-  [token message]
-  (throw (ex-info message
-                  {:type  :evaluator-error,
-                   :token token})))
-
 (defn- validate-numeric!
-  "Validates that the operands are numbers, throwing a Lox runtime error otherwise."
-  ([operator operand] (when-not (number? operand) (evaluator-error operator "Operand must be a number.")))
+  ([operator operand] (when-not (number? operand) (error/evaluator-error operator "Operand must be a number.")))
   ([operator left right]
-   (when-not (and (number? left) (number? right)) (evaluator-error operator "Operands must be numbers."))))
+   (when-not (and (number? left) (number? right)) (error/evaluator-error operator "Operands must be numbers."))))
 
 (defn- stringify
   [val]
@@ -94,7 +88,7 @@
         op-type (get-in expr [:op :type])]
     (cond (contains? numeric-binary-ops op-type) (validate-numeric! op left right)
           (= op-type :plus) (when-not (or (and (number? left) (number? right)) (and (string? left) (string? right)))
-                              (evaluator-error op "Operands must be two numbers or two strings.")))
+                              (error/evaluator-error op "Operands must be two numbers or two strings.")))
     (cond (= op-type :minus) (- left right)
           (= op-type :slash) (/ left right)
           (= op-type :star) (* left right)
@@ -105,7 +99,7 @@
           (= op-type :bang-equal) (not= left right)
           (= op-type :equal-equal) (= left right)
           (= op-type :plus) (if (and (string? left) (string? right)) (str left right) (+ left right))
-          :else (evaluator-error op "Unknown binary operator"))))
+          :else (error/evaluator-error op "Unknown binary operator"))))
 
 (defmethod evaluate :call
   [expr env]
@@ -118,22 +112,22 @@
         paren-token (:paren expr)]
     (cond (and (map? callee) (= (:type callee) :lox-function))
           (if-not (= (count args) (:arity callee))
-            (evaluator-error paren-token (str "Expected " (:arity callee) " arguments but got " (count args) "."))
+            (error/evaluator-error paren-token (str "Expected " (:arity callee) " arguments but got " (count args) "."))
             ((:call-fn callee) args env))
           (and (map? callee) (= (:type callee) :native-function))
           (if-not (= (count args) (:arity callee))
-            (evaluator-error paren-token (str "Expected " (:arity callee) " arguments but got " (count args) "."))
+            (error/evaluator-error paren-token (str "Expected " (:arity callee) " arguments but got " (count args) "."))
             ((:call-fn callee) args))
           (and (map? callee) (= (:type callee) :lox-class))
           (let [init-method (find-method callee "init")
                 arity (if init-method (:arity init-method) 0)]
             (if-not (= (count args) arity)
-              (evaluator-error paren-token (str "Expected " arity " arguments but got " (count args) "."))
+              (error/evaluator-error paren-token (str "Expected " arity " arguments but got " (count args) "."))
               (let [fields-address (memory/alloc! {})
                     instance {:type :lox-instance, :class callee, :fields-address fields-address}]
                 (when init-method ((:call-fn (bind-method init-method instance)) args env))
                 instance)))
-          :else (evaluator-error paren-token "Can only call functions and classes."))))
+          :else (error/evaluator-error paren-token "Can only call functions and classes."))))
 
 (defmethod evaluate :get
   [expr env]
@@ -145,8 +139,8 @@
           (get fields name-lexeme)
           (if-let [method (find-method (:class obj) name-lexeme)]
             (bind-method method obj)
-            (evaluator-error (:name expr) (str "Undefined property '" name-lexeme "'.")))))
-      (evaluator-error (:name expr) "Only instances have properties."))))
+            (error/evaluator-error (:name expr) (str "Undefined property '" name-lexeme "'.")))))
+      (error/evaluator-error (:name expr) "Only instances have properties."))))
 
 (defmethod evaluate :grouping [expr env] (evaluate (:expression expr) env))
 
@@ -170,7 +164,7 @@
             updated-fields (assoc current-fields name-lexeme value)]
         (memory/write-store! (:fields-address obj) updated-fields)
         value)
-      (evaluator-error (:name expr) "Only instances have fields."))))
+      (error/evaluator-error (:name expr) "Only instances have fields."))))
 
 (defmethod evaluate :super
   [expr env]
@@ -181,7 +175,7 @@
         method (find-method superclass method-name)]
     (if method
       (bind-method method instance)
-      (evaluator-error (:method expr) (str "Undefined property '" method-name "'.")))))
+      (error/evaluator-error (:method expr) (str "Undefined property '" method-name "'.")))))
 
 (defmethod evaluate :this
   [expr env]
@@ -195,7 +189,7 @@
     (when (= op-type :minus) (validate-numeric! op right))
     (cond (= op-type :minus) (- right)
           (= op-type :bang) (not (truthy? right))
-          :else (evaluator-error op "Unknown unary operator"))))
+          :else (error/evaluator-error op "Unknown unary operator"))))
 
 (defmethod evaluate :variable
   [expr env]
@@ -217,7 +211,7 @@
   (let [superclass-expr (:superclass stmt)
         superclass (when superclass-expr (evaluate superclass-expr env))]
     (when (and superclass-expr (not= (:type superclass) :lox-class))
-      (evaluator-error (:name superclass-expr) "Superclass must be a class."))
+      (error/evaluator-error (:name superclass-expr) "Superclass must be a class."))
     (let [lexeme (:lexeme (:name stmt))
           address (memory/alloc! nil)
           new-env (cons (assoc (first env) lexeme address) (rest env))

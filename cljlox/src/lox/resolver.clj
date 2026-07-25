@@ -1,13 +1,8 @@
 (ns lox.resolver
-  (:require [lox.ast :as ast]))
+  (:require [lox.ast :as ast]
+            [lox.error :as error]))
 
 (def initial-state {:scopes '(), :function-type :none, :class-type :none})
-
-(defn- resolver-error
-  [token message]
-  (throw (ex-info message
-                  {:type  :resolver-error,
-                   :token token})))
 
 (defmulti resolve-expr ^:private (fn [state expr] (:type expr)))
 
@@ -26,7 +21,7 @@
     (let [current-scope (first (:scopes state))
           lexeme (:lexeme name-token)]
       (if (contains? current-scope lexeme)
-        (resolver-error name-token "Already a variable with this name in this scope.")
+        (error/resolver-error name-token "Already a variable with this name in this scope.")
         (update state :scopes #(cons (assoc (first %) lexeme false) (rest %)))))))
 
 (defn- define-var
@@ -123,15 +118,15 @@
 (defmethod resolve-expr :super
   [state expr]
   (let [class-type (:class-type state)]
-    (cond (= class-type :none) (resolver-error (:keyword expr) "Can't use 'super' outside of a class.")
-          (not (= class-type :subclass)) (resolver-error (:keyword expr)
-                                                         "Can't use 'super' in a class with no superclass.")
+    (cond (= class-type :none) (error/resolver-error (:keyword expr) "Can't use 'super' outside of a class.")
+          (not (= class-type :subclass)) (error/resolver-error (:keyword expr)
+                                                               "Can't use 'super' in a class with no superclass.")
           :else [(resolve-local state expr (:keyword expr)) state])))
 
 (defmethod resolve-expr :this
   [state expr]
   (if (= (:class-type state) :none)
-    (resolver-error (:keyword expr) "Can't use 'this' outside of a class.")
+    (error/resolver-error (:keyword expr) "Can't use 'this' outside of a class.")
     [(resolve-local state expr (:keyword expr)) state]))
 
 (defmethod resolve-expr :unary
@@ -144,7 +139,7 @@
         lexeme (:lexeme name-token)
         current-scope (first (:scopes state))]
     (if (and current-scope (= (get current-scope lexeme) false))
-      (resolver-error name-token "Can't read local variable in its own initializer.")
+      (error/resolver-error name-token "Can't read local variable in its own initializer.")
       [(resolve-local state expr name-token) state])))
 
 (defmethod resolve-expr :default [state expr] [expr state])
@@ -163,7 +158,7 @@
         saved-class-type (:class-type state-defined)
         superclass (:superclass stmt)]
     (when (and superclass (= (:lexeme name-token) (:lexeme (:name superclass))))
-      (resolver-error (:name superclass) "A class can't inherit from itself."))
+      (error/resolver-error (:name superclass) "A class can't inherit from itself."))
     (let [[resolved-superclass state-super-resolved]
           (if superclass (resolve-expr state-defined superclass) [nil state-defined])
           ;; create a 'fake' scope for 'super'
@@ -212,10 +207,10 @@
 
 (defmethod resolve-stmt :return
   [state stmt]
-  (when (= (:function-type state) :none) (resolver-error (:keyword stmt) "Can't return from top-level code."))
+  (when (= (:function-type state) :none) (error/resolver-error (:keyword stmt) "Can't return from top-level code."))
   (if (:value stmt)
     (do (when (= (:function-type state) :initialiser)
-          (resolver-error (:keyword stmt) "Can't return a value from an initializer."))
+          (error/resolver-error (:keyword stmt) "Can't return a value from an initializer."))
         (let [[value state-val] (resolve-expr state (:value stmt))] [(assoc stmt :value value) state-val]))
     [stmt state]))
 

@@ -1,5 +1,6 @@
 (ns lox.analyser
-  (:require [lox.ast :as ast]))
+  (:require [lox.ast :as ast]
+            [lox.error :as error]))
 
 (def ContextSchema
   [:map
@@ -9,8 +10,6 @@
 (def initial-context
   {:function-type :none,
    :class-type    :none})
-
-(defn- analyser-error [token message] (throw (ex-info message {:type :analyser-error, :token token})))
 
 (defmulti analyse-expr
   ^:private {:malli/schema [:=> [:cat ContextSchema ast/ExprSchema] :any]}
@@ -40,14 +39,14 @@
 
 (defmethod analyse-expr :this
   [context expr]
-  (when (= (:class-type context) :none) (analyser-error (:keyword expr) "Can't use 'this' outside of a class."))
+  (when (= (:class-type context) :none) (error/analyser-error (:keyword expr) "Can't use 'this' outside of a class."))
   nil)
 
 (defmethod analyse-expr :super
   [context expr]
-  (cond (= (:class-type context) :none) (analyser-error (:keyword expr) "Can't use 'super' outside of a class.")
-        (not= (:class-type context) :subclass) (analyser-error (:keyword expr)
-                                                               "Can't use 'super' in a class with no superclass."))
+  (cond (= (:class-type context) :none) (error/analyser-error (:keyword expr) "Can't use 'super' outside of a class.")
+        (not= (:class-type context) :subclass)
+        (error/analyser-error (:keyword expr) "Can't use 'super' in a class with no superclass."))
   nil)
 
 (defmethod analyse-expr :default [_ _] nil)
@@ -79,9 +78,9 @@
 
 (defmethod analyse-stmt :return
   [context stmt]
-  (when (= (:function-type context) :none) (analyser-error (:keyword stmt) "Can't return from top-level code."))
+  (when (= (:function-type context) :none) (error/analyser-error (:keyword stmt) "Can't return from top-level code."))
   (when (and (= (:function-type context) :initialiser) (:value stmt))
-    (analyser-error (:keyword stmt) "Can't return a value from an initializer."))
+    (error/analyser-error (:keyword stmt) "Can't return a value from an initializer."))
   (when (:value stmt) (analyse-expr context (:value stmt)))
   nil)
 
