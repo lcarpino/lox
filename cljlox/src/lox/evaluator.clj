@@ -7,10 +7,13 @@
 
 (def ^:private numeric-binary-ops #{:minus :slash :star :greater :greater-equal :less :less-equal})
 
+(defn- runtime-error [token message] (throw (ex-info message {:token token})))
+
 (defn- validate-numeric!
-  ([operator operand] (when-not (number? operand) (throw (ex-info "Operand must be a number." {:token operator}))))
+  "Validates that the operands are numbers, throwing a Lox runtime error otherwise."
+  ([operator operand] (when-not (number? operand) (runtime-error operator "Operand must be a number.")))
   ([operator left right]
-   (when-not (and (number? left) (number? right)) (throw (ex-info "Operands must be numbers." {:token operator})))))
+   (when-not (and (number? left) (number? right)) (runtime-error operator "Operands must be numbers."))))
 
 (defn- stringify
   [val]

@@ -33,7 +33,10 @@
                  (cond (:token data) (do (println (str (.getMessage e) "\n[line " (:line (:token data)) "]"))
                                          (if repl? env (System/exit 70)))
                        (:line data) (do (let [lexeme (:lexeme data)
-                                              where (if lexeme (str " at '" lexeme "'") "")]
+                                              token-type (:token-type data)
+                                              where (cond (= token-type :eof) " at end"
+                                                          lexeme (str " at '" lexeme "'")
+                                                          :else "")]
                                           (println (str "[line " (:line data) "] Error" where ": " (.getMessage e))))
                                         (if repl? env (System/exit 65)))
                        :else (do (println "System Error: " (.getMessage e)) (if repl? env (System/exit 1)))))))))))
@@ -56,8 +59,7 @@
 (defn -main
   [& args]
   (try (let [arglen (count args)]
-         (cond (> arglen 1) (do (println "Usage: cljlox [script]")
-                                (System/exit 64))
+         (cond (> arglen 1) (do (println "Usage: cljlox [script]") (System/exit 64))
                (= arglen 1) (run-file (first args))
                :else (run-prompt)))
        (catch Exception e (println (format "Fatal error: %s" (ex-message e))))))
