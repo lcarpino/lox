@@ -17,29 +17,41 @@
       (do (binding [*out* *err*]
             (doseq [err scanner-errors] (println (str "[line " (:line err) "] Error: " (:literal err)))))
           (if repl? env (System/exit 65)))
-      (try (let [[statements _] (parser/parse {:tokens tokens})
-                 validated-statements (analyser/analyse statements)
-                 resolved-statements (resolver/resolve validated-statements)]
-             (loop [current-env env
-                    remaining-stmts resolved-statements]
-               (if (empty? remaining-stmts)
-                 current-env
-                 (let [stmt (first remaining-stmts)
-                       result (evaluator/execute stmt current-env)]
-                   (recur result (rest remaining-stmts))))))
-           (catch Exception e
-             (let [data (ex-data e)]
-               (binding [*out* *err*]
-                 (cond (:token data) (do (println (str (.getMessage e) "\n[line " (:line (:token data)) "]"))
-                                         (if repl? env (System/exit 70)))
-                       (:line data) (do (let [lexeme (:lexeme data)
-                                              token-type (:token-type data)
-                                              where (cond (= token-type :eof) " at end"
-                                                          lexeme (str " at '" lexeme "'")
-                                                          :else "")]
-                                          (println (str "[line " (:line data) "] Error" where ": " (.getMessage e))))
-                                        (if repl? env (System/exit 65)))
-                       :else (do (println "System Error: " (.getMessage e)) (if repl? env (System/exit 1)))))))))))
+      (try
+        (let [[statements _] (parser/parse {:tokens tokens})
+              validated-statements (analyser/analyse statements)
+              resolved-statements (resolver/resolve validated-statements)]
+          (loop [current-env env
+                 remaining-stmts resolved-statements]
+            (if (empty? remaining-stmts)
+              current-env
+              (let [stmt (first remaining-stmts)
+                    result (evaluator/execute stmt current-env)]
+                (recur result (rest remaining-stmts))))))
+        (catch Exception e
+          (let [data (ex-data e)
+                err-type (:type data)]
+            (binding [*out* *err*]
+              (cond (= err-type :analyser-error) (do (println (str "[line " (:line (:token data))
+                                                                   "] Error at '" (:lexeme (:token data))
+                                                                   "': " (.getMessage e)))
+                                                     (if repl? env (System/exit 65)))
+                    (= err-type :resolver-error) (do (println (str "[line " (:line (:token data))
+                                                                   "] Error at '" (:lexeme (:token data))
+                                                                   "': " (.getMessage e)))
+                                                     (if repl? env (System/exit 65)))
+                    (= err-type :evaluator-error) (do (println
+                                                       (str (.getMessage e) "\n[line " (:line (:token data)) "]"))
+                                                      (if repl? env (System/exit 70)))
+                    (= err-type :parser-error) (do (let [lexeme (:lexeme data)
+                                                         token-type (:token-type data)
+                                                         where (cond (= token-type :eof) " at end"
+                                                                     lexeme (str " at '" lexeme "'")
+                                                                     :else "")]
+                                                     (println
+                                                      (str "[line " (:line data) "] Error" where ": " (.getMessage e))))
+                                                   (if repl? env (System/exit 65)))
+                    :else (do (println "System Error: " (.getMessage e)) (if repl? env (System/exit 1)))))))))))
 
 (defn- run-file
   [path]

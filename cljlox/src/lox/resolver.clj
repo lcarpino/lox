@@ -3,6 +3,12 @@
 
 (def initial-state {:scopes '(), :function-type :none, :class-type :none})
 
+(defn- resolver-error
+  [token message]
+  (throw (ex-info message
+                  {:type  :resolver-error,
+                   :token token})))
+
 (defmulti resolve-expr ^:private (fn [state expr] (:type expr)))
 
 (defmulti resolve-stmt ^:private (fn [state stmt] (:type stmt)))
@@ -14,17 +20,20 @@
      [result# (update state-after-body# :scopes rest)]))
 
 (defn- declare-var
-  [state lexeme]
+  [state name-token]
   (if (empty? (:scopes state))
     state
-    (let [current-scope (first (:scopes state))]
+    (let [current-scope (first (:scopes state))
+          lexeme (:lexeme name-token)]
       (if (contains? current-scope lexeme)
-        (throw (ex-info "Already a variable with this name in this scope." {:lexeme lexeme}))
+        (resolver-error name-token "Already a variable with this name in this scope.")
         (update state :scopes #(cons (assoc (first %) lexeme false) (rest %)))))))
 
 (defn- define-var
-  [state lexeme]
-  (if (empty? (:scopes state)) state (update state :scopes #(cons (assoc (first %) lexeme true) (rest %)))))
+  [state name-token]
+  (if (empty? (:scopes state))
+    state
+    (update state :scopes #(cons (assoc (first %) (:lexeme name-token) true) (rest %)))))
 
 (defn- resolve-local
   [state node name-token]
@@ -42,9 +51,9 @@
          remaining-params params]
     (if (empty? remaining-params)
       current-state
-      (let [param-name (:lexeme (first remaining-params))
-            state-declared (declare-var current-state param-name)
-            state-defined (define-var state-declared param-name)]
+      (let [param-token (first remaining-params)
+            state-declared (declare-var current-state param-token)
+            state-defined (define-var state-declared param-token)]
         (recur state-defined (rest remaining-params))))))
 
 (defn- resolve-statements
@@ -114,15 +123,15 @@
 (defmethod resolve-expr :super
   [state expr]
   (let [class-type (:class-type state)]
-    (cond (= class-type :none) (throw (ex-info "Can't use 'super' outside of a class." {:token (:keyword expr)}))
-          (not (= class-type :subclass)) (throw (ex-info "Can't use 'super' in a class with no superclass."
-                                                         {:token (:keyword expr)}))
+    (cond (= class-type :none) (resolver-error (:keyword expr) "Can't use 'super' outside of a class.")
+          (not (= class-type :subclass)) (resolver-error (:keyword expr)
+                                                         "Can't use 'super' in a class with no superclass.")
           :else [(resolve-local state expr (:keyword expr)) state])))
 
 (defmethod resolve-expr :this
   [state expr]
   (if (= (:class-type state) :none)
-    (throw (ex-info "Can't use 'this' outside of a class." {:token (:keyword expr)}))
+    (resolver-error (:keyword expr) "Can't use 'this' outside of a class.")
     [(resolve-local state expr (:keyword expr)) state]))
 
 (defmethod resolve-expr :unary
@@ -131,11 +140,12 @@
 
 (defmethod resolve-expr :variable
   [state expr]
-  (let [lexeme (:lexeme (:name expr))
+  (let [name-token (:name expr)
+        lexeme (:lexeme name-token)
         current-scope (first (:scopes state))]
     (if (and current-scope (= (get current-scope lexeme) false))
-      (throw (ex-info "Can't read local variable in its own initializer." {:token (:name expr)}))
-      [(resolve-local state expr (:name expr)) state])))
+      (resolver-error name-token "Can't read local variable in its own initializer.")
+      [(resolve-local state expr name-token) state])))
 
 (defmethod resolve-expr :default [state expr] [expr state])
 
@@ -147,13 +157,13 @@
 
 (defmethod resolve-stmt :class
   [state stmt]
-  (let [class-name (:lexeme (:name stmt))
-        state-declared (declare-var state class-name)
-        state-defined (define-var state-declared class-name)
+  (let [name-token (:name stmt)
+        state-declared (declare-var state name-token)
+        state-defined (define-var state-declared name-token)
         saved-class-type (:class-type state-defined)
         superclass (:superclass stmt)]
-    (when (and superclass (= class-name (:lexeme (:name superclass))))
-      (throw (ex-info "A class can't inherit from itself." {:token (:name superclass)})))
+    (when (and superclass (= (:lexeme name-token) (:lexeme (:name superclass))))
+      (resolver-error (:name superclass) "A class can't inherit from itself."))
     (let [[resolved-superclass state-super-resolved]
           (if superclass (resolve-expr state-defined superclass) [nil state-defined])
           ;; create a 'fake' scope for 'super'
@@ -183,9 +193,9 @@
 
 (defmethod resolve-stmt :function
   [state stmt]
-  (let [func-name (:lexeme (:name stmt))
-        state-declared (declare-var state func-name)
-        state-defined (define-var state-declared func-name)]
+  (let [name-token (:name stmt)
+        state-declared (declare-var state name-token)
+        state-defined (define-var state-declared name-token)]
     (resolve-function-body state-defined stmt :function)))
 
 (defmethod resolve-stmt :if
@@ -202,17 +212,20 @@
 
 (defmethod resolve-stmt :return
   [state stmt]
+  (when (= (:function-type state) :none) (resolver-error (:keyword stmt) "Can't return from top-level code."))
   (if (:value stmt)
-    (let [[value state-val] (resolve-expr state (:value stmt))] [(assoc stmt :value value) state-val])
+    (do (when (= (:function-type state) :initialiser)
+          (resolver-error (:keyword stmt) "Can't return a value from an initializer."))
+        (let [[value state-val] (resolve-expr state (:value stmt))] [(assoc stmt :value value) state-val]))
     [stmt state]))
 
 (defmethod resolve-stmt :var-stmt
   [state stmt]
-  (let [lexeme (:lexeme (:name stmt))
-        state-declared (declare-var state lexeme)
+  (let [name-token (:name stmt)
+        state-declared (declare-var state name-token)
         [resolved-init state-after-init]
         (if (:initialiser stmt) (resolve-expr state-declared (:initialiser stmt)) [nil state-declared])
-        state-defined (define-var state-after-init lexeme)]
+        state-defined (define-var state-after-init name-token)]
     [(assoc stmt :initialiser resolved-init) state-defined]))
 
 (defmethod resolve-stmt :while

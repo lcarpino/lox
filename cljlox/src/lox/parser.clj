@@ -17,7 +17,8 @@
 (defn- parse-error
   [token message]
   (throw (ex-info message
-                  {:line       (:line token),
+                  {:type       :parser-error,
+                   :line       (:line token),
                    :lexeme     (:lexeme token),
                    :token-type (:type token)})))
 
