@@ -55,12 +55,14 @@
   [initial-state]
   (loop [state initial-state
          acc []]
-    (let [c (first (:chars state))]
-      (if (or (digit? c) (= c \.))
-        (recur (update state :chars rest) (conj acc c))
-        (let [lexeme (apply str acc)
-              value (Double/parseDouble lexeme)]
-          [{:type :number, :lexeme lexeme, :literal value, :line (:line state)} state])))))
+    (let [chars (:chars state)
+          c (first chars)
+          next-c (second chars)]
+      (cond (digit? c) (recur (update state :chars rest) (conj acc c))
+            (and (= c \.) (digit? next-c)) (recur (update state :chars rest) (conj acc c))
+            :else (let [lexeme (apply str acc)
+                        value (Double/parseDouble lexeme)]
+                    [{:type :number, :lexeme lexeme, :literal value, :line (:line state)} state])))))
 
 (defn- scan-identifier
   {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
