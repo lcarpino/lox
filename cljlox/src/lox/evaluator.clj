@@ -5,6 +5,13 @@
 
 (def ReturnSchema [:map [:type [:= :return-value]] [:value memory/ValueSchema]])
 
+(def ^:private numeric-binary-ops #{:minus :slash :star :greater :greater-equal :less :less-equal})
+
+(defn- validate-numeric!
+  ([operator operand] (when-not (number? operand) (throw (ex-info "Operand must be a number." {:token operator}))))
+  ([operator left right]
+   (when-not (and (number? left) (number? right)) (throw (ex-info "Operands must be numbers." {:token operator})))))
+
 (defn- stringify
   [val]
   (cond (nil? val) "nil"
@@ -76,7 +83,11 @@
   [expr env]
   (let [left (evaluate (:left expr) env)
         right (evaluate (:right expr) env)
+        op (:op expr)
         op-type (get-in expr [:op :type])]
+    (cond (contains? numeric-binary-ops op-type) (validate-numeric! op left right)
+          (= op-type :plus) (when-not (or (and (number? left) (number? right)) (and (string? left) (string? right)))
+                              (throw (ex-info "Operands must be two numbers or two strings." {:token op}))))
     (cond (= op-type :minus) (- left right)
           (= op-type :slash) (/ left right)
           (= op-type :star) (* left right)
@@ -174,7 +185,9 @@
 (defmethod evaluate :unary
   [expr env]
   (let [right (evaluate (:right expr) env)
+        op (:op expr)
         op-type (get-in expr [:op :type])]
+    (when (= op-type :minus) (validate-numeric! op right))
     (cond (= op-type :minus) (- right)
           (= op-type :bang) (not (truthy? right))
           :else (throw (ex-info "Unknown unary operator" {:node expr})))))
