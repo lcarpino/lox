@@ -36,14 +36,16 @@
       ;; --- keywords ---
       (= (:type token) :this) [{:type :this, :keyword token} next-state]
       ;; --- super ---
-      (= (:type token) :super) (let [dot-token (first (:tokens next-state))]
-                                 (when-not (= (:type dot-token) :dot) (parse-error token "Expect '.' after 'super'."))
-                                 (let [state-after-dot (assoc next-state :tokens (rest (:tokens next-state)))
-                                       method-token (first (:tokens state-after-dot))]
+      (= (:type token) :super) (let [s-after-super (assoc state :tokens (rest (:tokens state)))
+                                     dot-token (first (:tokens s-after-super))]
+                                 (when-not (= (:type dot-token) :dot)
+                                   (parse-error (or dot-token token) "Expect '.' after 'super'."))
+                                 (let [s-after-dot (assoc s-after-super :tokens (rest (:tokens s-after-super)))
+                                       method-token (first (:tokens s-after-dot))]
                                    (when-not (= (:type method-token) :identifier)
-                                     (parse-error dot-token "Expect superclass method name."))
+                                     (parse-error (or method-token dot-token) "Expect superclass method name."))
                                    [{:type :super, :keyword token, :method method-token}
-                                    (assoc state-after-dot :tokens (rest (:tokens state-after-dot)))]))
+                                    (assoc s-after-dot :tokens (rest (:tokens s-after-dot)))]))
       ;; --- variables ---
       (= (:type token) :identifier) [{:type :variable, :name token} next-state]
       ;; --- grouping ---
@@ -287,11 +289,9 @@
               [[] state]
               (loop [params []
                      s state]
-                (when (>= (count params) 255)
-                  (parse-error (first (:tokens s)) "Can't have more than 255 parameters."))
+                (when (>= (count params) 255) (parse-error (first (:tokens s)) "Can't have more than 255 parameters."))
                 (let [param-token (first (:tokens s))]
-                  (when-not (= (:type param-token) :identifier)
-                    (parse-error param-token "Expect parameter name."))
+                  (when-not (= (:type param-token) :identifier) (parse-error param-token "Expect parameter name."))
                   (let [params (conj params param-token)
                         s-after-param (assoc s :tokens (rest (:tokens s)))
                         next-token (first (:tokens s-after-param))]
