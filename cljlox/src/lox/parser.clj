@@ -87,7 +87,7 @@
               (= (:type token) :dot) (let [state-after-dot (assoc current-state :tokens (rest (:tokens current-state)))
                                            name-token (first (:tokens state-after-dot))]
                                        (when-not (= (:type name-token) :identifier)
-                                         (parse-error token "Expect property name after '.'."))
+                                         (parse-error name-token "Expect property name after '.'."))
                                        (recur {:type :get, :object callee, :name name-token}
                                               (assoc state-after-dot :tokens (rest (:tokens state-after-dot)))))
               :else [callee current-state])))))
