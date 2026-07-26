@@ -6,8 +6,7 @@
   :plugins [[lein-zprint "1.3.0"]]
   :source-paths ["cljlox/src"]
   :test-paths ["cljlox/test"]
-  :dependencies [[org.clojure/clojure "1.12.4"]
-                 [metosin/malli "0.20.1"]]
+  :dependencies [[org.clojure/clojure "1.12.4"]]
   :zprint {:old? false
            :width 120
            :vector {:respect-nl? true
@@ -15,8 +14,10 @@
            :map    {:respect-nl? true
                     :justify? true}
            :style :community}
-  :main ^:skip-aot lox.core
+  :main lox.core
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all
-                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
-             :dev {:source-paths ["cljlox/dev"]}})
+  :profiles {:dev {:dependencies [[metosin/malli "0.20.1"]]
+                   :source-paths ["cljlox/dev"]}
+             :test {:dependencies [[metosin/malli "0.20.1"]]}
+             :uberjar {:aot :all
+                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
