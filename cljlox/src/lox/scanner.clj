@@ -26,9 +26,9 @@
    "var"    :var,
    "while"  :while})
 
-(defn- digit? [c] (and c (Character/isDigit c)))
+(defn- digit? [c] (and c (Character/isDigit (char c))))
 
-(defn- alpha? [c] (and c (or (Character/isLetter c) (= c \_))))
+(defn- alpha? [c] (and c (or (Character/isLetter (char c)) (= c \_))))
 
 (defn- alpha-numeric? [c] (or (alpha? c) (digit? c)))
 
