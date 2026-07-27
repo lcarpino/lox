@@ -9,7 +9,7 @@ implementation of the official Java version in the book and a more functionally 
 My implementation of `jlox` makes use of `bazel` as the build system, which must be installed before `jlox` can be
 built. `bazel` makes toolchains that involve code generation easy to define and orchestrate, as a result the generated
 files `Expr.java` and `Stmt.java` are not committed to the repo and instead are transitive dependencies in the build
-chain of the full `jlox` interpreter.
+chain of the full `jlox` interpreter. This is essentially the exact implementation from the book.
 
 ### Building `jlox` with `bazel`
 
@@ -54,15 +54,38 @@ bazel run //jlox/com/craftinginterpreters/tool:generate_ast $(git rev-parse --sh
 
 ## cljlox
 
+`cljlox` is a complete implementation of `Lox` language that passes all of the test suite, but written in a completely
+different paradigm to `jlox`. `cljlox` completely eschews mutation, adopting a data-flow style of programming where all
+of the functions are completely pure and we make sure of plan data structures rather than objects. Note that, because
+`Lox` itself is a language that makes heavy use of mutation we have to make one concession to impurity in our memory
+store so that it is possible to mutate values pointed to by references. We use Leiningen for managing and building
+`cljlox`.
+
+Major changes compared to `jlox`:
+
+- Removed the use of exceptions for parser synchronisation and return statements, instead all of this is handled
+  explicitly as part of the current state and threaded through all of the call stack.
+- Replaced the visitor pattern with multimethods.
+- All state is held in as plain data using Clojure nested maps. We define explicit schemas using Malli to make sure that
+  data remains in a valid state as it is passed through our interpreter.
+- Separated the `jlox` resolver into a separate analyser and resolver. This makes the interpreter more explicit at the
+  cost of having to walk the tree an extra time on each pass.
+- We are using a manual memory model where we have immutable addresses that point to mutable memory locations. For
+  simplicity this mutable memory is a Clojure vector which is appended to each time new variables are created.
+
+One of the caveats with the current approach is that there is no garbage collection, so our virtual heap will continue
+to grow without limit. I may address this at some point, but for this project, where the goal was to learn about
+compilers and interpreters, I do not see this as a particularly serious limitation.
+
 ### Building `cljlox` with `lein`
 
-Build the interpreter as a standalone jar
+Build the interpreter as a standalone jar file which can be used with a standard Java runtime environment.
 
 ```bash
 lein uberjar
 ```
 
-Run a demo program
+Run a demo program.
 
 ```bash
 lein run $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
@@ -97,5 +120,5 @@ sudo apt-get update && sudo apt-get install dart=2.19.6-1 && sudo apt-mark hold 
 ```
 
 ```bash
-dart tool/bin/test.dart jlox --interpreter ../lox/scripts/cljlox.sh
+dart tool/bin/test.dart jlox --interpreter scripts/cljlox.sh
 ```
