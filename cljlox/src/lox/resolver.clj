@@ -2,7 +2,7 @@
   (:require [lox.ast :as ast]
             [lox.error :as error]))
 
-(def initial-state {:scopes '(), :function-type :none, :class-type :none})
+(def initial-state {:scopes '(), :function-type :none, :class-type :none, :errors []})
 
 (defmulti resolve-expr ^:private (fn [state expr] (:type expr)))
 
@@ -21,7 +21,9 @@
     (let [current-scope (first (:scopes state))
           lexeme (:lexeme name-token)]
       (if (contains? current-scope lexeme)
-        (error/resolver-error name-token "Already a variable with this name in this scope.")
+        (let [[_ state-after-var]
+              (error/resolver-error state name-token "Already a variable with this name in this scope.")]
+          state-after-var)
         (update state :scopes #(cons (assoc (first %) lexeme false) (rest %)))))))
 
 (defn- define-var
@@ -118,15 +120,15 @@
 (defmethod resolve-expr :super
   [state expr]
   (let [class-type (:class-type state)]
-    (cond (= class-type :none) (error/resolver-error (:keyword expr) "Can't use 'super' outside of a class.")
-          (not (= class-type :subclass)) (error/resolver-error (:keyword expr)
-                                                               "Can't use 'super' in a class with no superclass.")
+    (cond (= class-type :none) (error/resolver-error state (:keyword expr) "Can't use 'super' outside of a class.")
+          (not (= class-type :subclass))
+          (error/resolver-error state (:keyword expr) "Can't use 'super' in a class with no superclass.")
           :else [(resolve-local state expr (:keyword expr)) state])))
 
 (defmethod resolve-expr :this
   [state expr]
   (if (= (:class-type state) :none)
-    (error/resolver-error (:keyword expr) "Can't use 'this' outside of a class.")
+    (error/resolver-error state (:keyword expr) "Can't use 'this' outside of a class.")
     [(resolve-local state expr (:keyword expr)) state]))
 
 (defmethod resolve-expr :unary
@@ -139,7 +141,7 @@
         lexeme (:lexeme name-token)
         current-scope (first (:scopes state))]
     (if (and current-scope (= (get current-scope lexeme) false))
-      (error/resolver-error name-token "Can't read local variable in its own initializer.")
+      (error/resolver-error state name-token "Can't read local variable in its own initializer.")
       [(resolve-local state expr name-token) state])))
 
 (defmethod resolve-expr :default [state expr] [expr state])
@@ -156,15 +158,14 @@
         state-declared (declare-var state name-token)
         state-defined (define-var state-declared name-token)
         saved-class-type (:class-type state-defined)
-        superclass (:superclass stmt)]
-    (when (and superclass (= (:lexeme name-token) (:lexeme (:name superclass))))
-      (error/resolver-error (:name superclass) "A class can't inherit from itself."))
+        superclass (:superclass stmt)
+        [_ state-defined] (if (and superclass (= (:lexeme name-token) (:lexeme (:name superclass))))
+                            (error/resolver-error state-defined (:name superclass) "A class can't inherit from itself.")
+                            [nil state-defined])]
     (let [[resolved-superclass state-super-resolved]
           (if superclass (resolve-expr state-defined superclass) [nil state-defined])
-          ;; create a 'fake' scope for 'super'
           state-with-super
           (if superclass (update state-super-resolved :scopes #(cons {"super" true} %)) state-super-resolved)
-          ;; create a 'fake' scope for 'this' so methods can resolve it
           state-with-this (-> state-with-super
                               (assoc :class-type (if superclass :subclass :class))
                               (update :scopes #(cons {"this" true} %)))
@@ -176,11 +177,12 @@
               [resolved-methods-acc current-state]
               (let [method (first remaining-methods)
                     method-type (if (= "init" (:lexeme (:name method))) :initialiser :method)
-                    ;; resolve the method body without declaring its name in the scope
-                    [resolved-method _] (resolve-function-body current-state method method-type)]
-                (recur (rest remaining-methods) current-state (conj resolved-methods-acc resolved-method)))))]
+                    [resolved-method ctx-after] (resolve-function-body current-state method method-type)]
+                (recur (rest remaining-methods)
+                       (assoc current-state :errors (:errors ctx-after))
+                       (conj resolved-methods-acc resolved-method)))))]
       [(assoc stmt :superclass resolved-superclass :methods resolved-methods)
-       (assoc state-super-resolved :class-type saved-class-type)])))
+       (assoc state-super-resolved :class-type saved-class-type :errors (:errors _))])))
 
 (defmethod resolve-stmt :expr
   [state stmt]
@@ -207,12 +209,15 @@
 
 (defmethod resolve-stmt :return
   [state stmt]
-  (when (= (:function-type state) :none) (error/resolver-error (:keyword stmt) "Can't return from top-level code."))
-  (if (:value stmt)
-    (do (when (= (:function-type state) :initialiser)
-          (error/resolver-error (:keyword stmt) "Can't return a value from an initializer."))
-        (let [[value state-val] (resolve-expr state (:value stmt))] [(assoc stmt :value value) state-val]))
-    [stmt state]))
+  (let [[_ state] (if (= (:function-type state) :none)
+                    (error/resolver-error state (:keyword stmt) "Can't return from top-level code.")
+                    [nil state])
+        [_ state] (if (and (:value stmt) (= (:function-type state) :initialiser))
+                    (error/resolver-error state (:keyword stmt) "Can't return a value from an initializer.")
+                    [nil state])]
+    (if (:value stmt)
+      (let [[value state-val] (resolve-expr state (:value stmt))] [(assoc stmt :value value) state-val])
+      [stmt state])))
 
 (defmethod resolve-stmt :var-stmt
   [state stmt]
@@ -231,4 +236,4 @@
 
 (defmethod resolve-stmt :default [state stmt] [stmt state])
 
-(defn resolve [statements] (let [[resolved-stmts _] (resolve-statements initial-state statements)] resolved-stmts))
+(defn resolve [statements] (resolve-statements initial-state statements))

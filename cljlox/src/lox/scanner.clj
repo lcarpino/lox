@@ -4,7 +4,8 @@
 (def ScannerStateSchema
   [:map
    [:chars [:sequential char?]]
-   [:line :int]])
+   [:line :int]
+   [:errors {:optional true} [:sequential :any]]])
 
 (def ScannerOutputSchema [:sequential TokenSchema])
 
@@ -33,14 +34,20 @@
 (defn- alpha-numeric? [c] (or (alpha? c) (digit? c)))
 
 (defn- scan-string
-  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple [:maybe TokenSchema] ScannerStateSchema]]}
   [initial-state]
   (loop [state (update initial-state :chars rest)
          acc []]
     (let [c (first (:chars state))]
-      (cond (nil? c) (let [lexeme (apply str acc)]
-                       [{:type :error, :lexeme lexeme, :line (:line state), :literal "Unterminated string."}
-                        (assoc state :chars '())])
+      (cond (nil? c)
+            (let [lexeme (apply str acc)]
+              [nil
+               (-> state
+                   (assoc :chars '())
+                   (update
+                    :errors
+                    (fnil conj [])
+                    {:type :scanner-error, :line (:line state), :lexeme lexeme, :message "Unterminated string."}))])
             (= c \") (let [lexeme (apply str acc)]
                        [{:type :string, :lexeme (str "\"" lexeme "\""), :literal lexeme, :line (:line state)}
                         (update state :chars rest)])
@@ -51,7 +58,7 @@
             :else (recur (update state :chars rest) (conj acc c))))))
 
 (defn- scan-number
-  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple [:maybe TokenSchema] ScannerStateSchema]]}
   [initial-state]
   (loop [state initial-state
          acc []]
@@ -65,7 +72,7 @@
                     [{:type :number, :lexeme lexeme, :literal value, :line (:line state)} state])))))
 
 (defn- scan-identifier
-  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple [:maybe TokenSchema] ScannerStateSchema]]}
   [initial-state]
   (loop [state initial-state
          acc []]
@@ -78,7 +85,7 @@
 
 
 (defn scan-token
-  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple TokenSchema ScannerStateSchema]]}
+  {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple [:maybe TokenSchema] ScannerStateSchema]]}
   [initial-state]
   (loop [state initial-state]
     (let [chars (:chars state)
@@ -126,13 +133,20 @@
           (alpha? c) (scan-identifier state)
           (digit? c) (scan-number state)
           ;; --- fallback ---
-          :else [{:type :error, :lexeme (str c), :line line, :literal "Unexpected character."}
-                 (update state :chars rest)])))))
+          :else [nil
+                 (-> state
+                     (update :chars rest)
+                     (update
+                      :errors
+                      (fnil conj [])
+                      {:type :scanner-error, :line line, :lexeme (str c), :message "Unexpected character."}))])))))
 
 (defn scan
-  {:malli/schema [:=> [:cat :string] ScannerOutputSchema]}
+  {:malli/schema [:=> [:cat :string] [:tuple ScannerOutputSchema ScannerStateSchema]]}
   [source]
-  (loop [state {:chars (seq source), :line 1}
+  (loop [state {:chars (seq source), :line 1, :errors []}
          tokens []]
     (let [[token next-state] (scan-token state)]
-      (if (= (:type token) :eof) (conj tokens token) (recur next-state (conj tokens token))))))
+      (cond (nil? token) (recur next-state tokens)
+            (= (:type token) :eof) [(conj tokens token) next-state]
+            :else (recur next-state (conj tokens token))))))

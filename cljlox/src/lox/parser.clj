@@ -5,7 +5,9 @@
 
 (def ParserStateSchema
   [:map
-   [:tokens [:sequential TokenSchema]]])
+   [:tokens [:sequential TokenSchema]]
+   [:errors {:optional true} [:sequential :any]]
+   [:mode {:optional true} [:enum :normal :recovering]]])
 
 (def ParserFnSchema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]])
 
@@ -14,6 +16,16 @@
 (declare parse-expression)
 (declare parse-declaration)
 (declare parse-statement)
+
+(defn- synchronise
+  [state]
+  (loop [s (assoc state :mode :normal)]
+    (let [token (first (:tokens s))]
+      (cond (or (nil? token) (= (:type token) :eof)) s
+            (#{:class :fun :var :for :if :while :print :return} (:type token)) s
+            :else (if (= (:type token) :semicolon)
+                    (assoc s :tokens (rest (:tokens s)))
+                    (recur (assoc s :tokens (rest (:tokens s)))))))))
 
 (defn parse-primary
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
@@ -29,62 +41,74 @@
       ;; --- keywords ---
       (= (:type token) :this) [{:type :this, :keyword token} next-state]
       ;; --- super ---
-      (= (:type token) :super) (let [s-after-super (assoc state :tokens (rest (:tokens state)))
-                                     dot-token (first (:tokens s-after-super))]
-                                 (when-not (= (:type dot-token) :dot)
-                                   (error/parser-error (or dot-token token) "Expect '.' after 'super'."))
-                                 (let [s-after-dot (assoc s-after-super :tokens (rest (:tokens s-after-super)))
-                                       method-token (first (:tokens s-after-dot))]
-                                   (when-not (= (:type method-token) :identifier)
-                                     (error/parser-error (or method-token dot-token) "Expect superclass method name."))
-                                   [{:type :super, :keyword token, :method method-token}
-                                    (assoc s-after-dot :tokens (rest (:tokens s-after-dot)))]))
+      (= (:type token) :super)
+      (let [s-after-super (assoc state :tokens (rest (:tokens state)))
+            dot-token (first (:tokens s-after-super))]
+        (if-not (= (:type dot-token) :dot)
+          (error/parser-error s-after-super (or dot-token token) "Expect '.' after 'super'.")
+          (let [s-after-dot (assoc s-after-super :tokens (rest (:tokens s-after-super)))
+                method-token (first (:tokens s-after-dot))]
+            (if-not (= (:type method-token) :identifier)
+              (error/parser-error s-after-dot (or method-token dot-token) "Expect superclass method name.")
+              [{:type :super, :keyword token, :method method-token}
+               (assoc s-after-dot :tokens (rest (:tokens s-after-dot)))]))))
       ;; --- variables ---
       (= (:type token) :identifier) [{:type :variable, :name token} next-state]
       ;; --- grouping ---
-      (= (:type token) :lparen) (let [[inner-expr state-after-expr] (parse-expression next-state)
-                                      closing-token (first (:tokens state-after-expr))]
-                                  (if (= (:type closing-token) :rparen)
-                                    [{:type :grouping, :expression inner-expr}
-                                     (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
-                                    (error/parser-error token "Expect ')' after expression.")))
+      (= (:type token) :lparen)
+      (let [[inner-expr state-after-expr] (parse-expression next-state)]
+        (if (= (:mode state-after-expr) :recovering)
+          [nil state-after-expr]
+          (let [closing-token (first (:tokens state-after-expr))]
+            (if (= (:type closing-token) :rparen)
+              [{:type :grouping, :expression inner-expr}
+               (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
+              (error/parser-error state-after-expr (or closing-token token) "Expect ')' after expression.")))))
       ;; --- fallback ---
-      :else (error/parser-error token "Expect expression."))))
+      :else (error/parser-error state token "Expect expression."))))
 
 (defn parse-call
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
   (let [[expr state-after-expr] (parse-primary state)]
-    (loop [callee expr
-           current-state state-after-expr]
-      (let [token (first (:tokens current-state))]
-        (cond (= (:type token) :lparen)
-              (let [state-after-lparen (assoc current-state :tokens (rest (:tokens current-state)))
-                    [args state-after-args]
-                    (if (= (:type (first (:tokens state-after-lparen))) :rparen)
-                      [[] state-after-lparen]
-                      (loop [args []
-                             s state-after-lparen]
-                        (when (>= (count args) 255)
-                          (error/parser-error (first (:tokens s)) "Can't have more than 255 arguments."))
-                        (let [[arg s-after-arg] (parse-expression s)
-                              args (conj args arg)
-                              next-token (first (:tokens s-after-arg))]
-                          (if (= (:type next-token) :comma)
-                            (recur args (assoc s-after-arg :tokens (rest (:tokens s-after-arg))))
-                            [args s-after-arg]))))
-                    paren-token (first (:tokens state-after-args))]
-                (when-not (= (:type paren-token) :rparen)
-                  (error/parser-error paren-token "Expect ')' after arguments."))
-                (recur {:type :call, :callee callee, :paren paren-token, :arguments args}
-                       (assoc state-after-args :tokens (rest (:tokens state-after-args)))))
-              (= (:type token) :dot) (let [state-after-dot (assoc current-state :tokens (rest (:tokens current-state)))
-                                           name-token (first (:tokens state-after-dot))]
-                                       (when-not (= (:type name-token) :identifier)
-                                         (error/parser-error (or name-token token) "Expect property name after '.'."))
-                                       (recur {:type :get, :object callee, :name name-token}
-                                              (assoc state-after-dot :tokens (rest (:tokens state-after-dot)))))
-              :else [callee current-state])))))
+    (if (= (:mode state-after-expr) :recovering)
+      [nil state-after-expr]
+      (loop [callee expr
+             current-state state-after-expr]
+        (let [token (first (:tokens current-state))]
+          (cond (= (:type token) :lparen)
+                (let [state-after-lparen (assoc current-state :tokens (rest (:tokens current-state)))]
+                  (if (= (:type (first (:tokens state-after-lparen))) :rparen)
+                    (recur {:type :call, :callee callee, :paren (first (:tokens state-after-lparen)), :arguments []}
+                           (assoc state-after-lparen :tokens (rest (:tokens state-after-lparen))))
+                    (let [[args state-after-args]
+                          (loop [args []
+                                 s state-after-lparen]
+                            (if (>= (count args) 255)
+                              (error/parser-error s (first (:tokens s)) "Can't have more than 255 arguments.")
+                              (let [[arg s-after-arg] (parse-expression s)]
+                                (if (= (:mode s-after-arg) :recovering)
+                                  [nil s-after-arg]
+                                  (let [args (conj args arg)
+                                        next-token (first (:tokens s-after-arg))]
+                                    (if (= (:type next-token) :comma)
+                                      (recur args (assoc s-after-arg :tokens (rest (:tokens s-after-arg))))
+                                      [args s-after-arg]))))))]
+                      (if (= (:mode state-after-args) :recovering)
+                        [nil state-after-args]
+                        (let [paren-token (first (:tokens state-after-args))]
+                          (if-not (= (:type paren-token) :rparen)
+                            (error/parser-error state-after-args paren-token "Expect ')' after arguments.")
+                            (recur {:type :call, :callee callee, :paren paren-token, :arguments args}
+                                   (assoc state-after-args :tokens (rest (:tokens state-after-args))))))))))
+                (= (:type token) :dot)
+                (let [state-after-dot (assoc current-state :tokens (rest (:tokens current-state)))
+                      name-token (first (:tokens state-after-dot))]
+                  (if-not (= (:type name-token) :identifier)
+                    (error/parser-error state-after-dot (or name-token token) "Expect property name after '.'.")
+                    (recur {:type :get, :object callee, :name name-token}
+                           (assoc state-after-dot :tokens (rest (:tokens state-after-dot))))))
+                :else [callee current-state]))))))
 
 (defn parse-unary
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
@@ -93,7 +117,9 @@
     (if (#{:bang :minus} (:type token))
       (let [state-after-op (assoc state :tokens (rest (:tokens state)))
             [right-expr final-state] (parse-unary state-after-op)]
-        [{:type :unary, :op token, :right right-expr} final-state])
+        (if (= (:mode final-state) :recovering)
+          [nil final-state]
+          [{:type :unary, :op token, :right right-expr} final-state]))
       (parse-call state))))
 
 (defn- make-binary-parser
@@ -101,29 +127,36 @@
   [operator-types next-parser-fn]
   (fn [initial-state]
     (let [[expr state-after-left] (next-parser-fn initial-state)]
-      (loop [left-expr expr
-             state state-after-left]
-        (let [token (first (:tokens state))]
-          (if (contains? operator-types (:type token))
-            (let [state-after-op (assoc state :tokens (rest (:tokens state)))
-                  [right-expr state-after-right] (next-parser-fn state-after-op)
-                  new-binary-node {:type :binary, :op token, :left left-expr, :right right-expr}]
-              (recur new-binary-node state-after-right))
-            [left-expr state]))))))
+      (if (= (:mode state-after-left) :recovering)
+        [nil state-after-left]
+        (loop [left-expr expr
+               state state-after-left]
+          (let [token (first (:tokens state))]
+            (if (contains? operator-types (:type token))
+              (let [state-after-op (assoc state :tokens (rest (:tokens state)))
+                    [right-expr state-after-right] (next-parser-fn state-after-op)]
+                (if (= (:mode state-after-right) :recovering)
+                  [nil state-after-right]
+                  (recur {:type :binary, :op token, :left left-expr, :right right-expr} state-after-right)))
+              [left-expr state])))))))
 
 (defn- make-logical-parser
   {:malli/schema [:=> [:cat [:set :keyword] ParserFnSchema] ParserFnSchema]}
   [operator-types next-parser-fn]
   (fn [initial-state]
     (let [[expr state-after-left] (next-parser-fn initial-state)]
-      (loop [left-expr expr
-             state state-after-left]
-        (let [token (first (:tokens state))]
-          (if (contains? operator-types (:type token))
-            (let [state-after-op (assoc state :tokens (rest (:tokens state)))
-                  [right-expr state-after-right] (next-parser-fn state-after-op)]
-              (recur {:type :logical, :op token, :left left-expr, :right right-expr} state-after-right))
-            [left-expr state]))))))
+      (if (= (:mode state-after-left) :recovering)
+        [nil state-after-left]
+        (loop [left-expr expr
+               state state-after-left]
+          (let [token (first (:tokens state))]
+            (if (contains? operator-types (:type token))
+              (let [state-after-op (assoc state :tokens (rest (:tokens state)))
+                    [right-expr state-after-right] (next-parser-fn state-after-op)]
+                (if (= (:mode state-after-right) :recovering)
+                  [nil state-after-right]
+                  (recur {:type :logical, :op token, :left left-expr, :right right-expr} state-after-right)))
+              [left-expr state])))))))
 
 (def parse-factor (make-binary-parser #{:slash :star} parse-unary))
 (def parse-term (make-binary-parser #{:minus :plus} parse-factor))
@@ -136,17 +169,22 @@
 (defn parse-assignment
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
   [state]
-  (let [[left-expr state-after-left] (parse-or state)
-        token (first (:tokens state-after-left))]
-    (if (and token (= (:type token) :equal))
-      (let [state-after-equal (assoc state-after-left :tokens (rest (:tokens state-after-left)))
-            [value-expr state-after-value] (parse-assignment state-after-equal)]
-        (cond (= (:type left-expr) :variable) [{:type :assign, :name (:name left-expr), :value value-expr}
-                                               state-after-value]
-              (= (:type left-expr) :get)
-              [{:type :set, :object (:object left-expr), :name (:name left-expr), :value value-expr} state-after-value]
-              :else (error/parser-error token "Invalid assignment target.")))
-      [left-expr state-after-left])))
+  (let [[left-expr state-after-left] (parse-or state)]
+    (if (= (:mode state-after-left) :recovering)
+      [nil state-after-left]
+      (let [token (first (:tokens state-after-left))]
+        (if (and token (= (:type token) :equal))
+          (let [state-after-equal (assoc state-after-left :tokens (rest (:tokens state-after-left)))
+                [value-expr state-after-value] (parse-assignment state-after-equal)]
+            (if (= (:mode state-after-value) :recovering)
+              [nil state-after-value]
+              (cond (= (:type left-expr) :variable) [{:type :assign, :name (:name left-expr), :value value-expr}
+                                                     state-after-value]
+                    (= (:type left-expr) :get)
+                    [{:type :set, :object (:object left-expr), :name (:name left-expr), :value value-expr}
+                     state-after-value]
+                    :else (error/parser-error state-after-value token "Invalid assignment target."))))
+          [left-expr state-after-left])))))
 
 (defn parse-expression
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]]}
@@ -159,159 +197,213 @@
   (loop [statements []
          current-state state]
     (let [token (first (:tokens current-state))]
-      (cond (or (nil? token) (= (:type token) :eof)) (error/parser-error token "Expect '}' after block.")
+      (cond (or (nil? token) (= (:type token) :eof)) (error/parser-error current-state token "Expect '}' after block.")
             (= (:type token) :rbrace) [{:type :block, :statements statements}
                                        (assoc current-state :tokens (rest (:tokens current-state)))]
             :else (let [[statement next-state] (parse-declaration current-state)]
-                    (recur (conj statements statement) next-state))))))
+                    (if (= (:mode next-state) :recovering)
+                      [nil next-state]
+                      (recur (if statement (conj statements statement) statements) next-state)))))))
 
 (defn- parse-print-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [state-after-print (assoc state :tokens (rest (:tokens state)))
-        [expr state-after-expr] (parse-expression state-after-print)
-        semicolon-token (first (:tokens state-after-expr))]
-    (if (= (:type semicolon-token) :semicolon)
-      [{:type :print, :expression expr}
-       (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
-      (error/parser-error semicolon-token "Expect ';' after value."))))
+        [expr state-after-expr] (parse-expression state-after-print)]
+    (if (= (:mode state-after-expr) :recovering)
+      [nil state-after-expr]
+      (let [semicolon-token (first (:tokens state-after-expr))]
+        (if (= (:type semicolon-token) :semicolon)
+          [{:type :print, :expression expr} (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
+          (error/parser-error state-after-expr semicolon-token "Expect ';' after value."))))))
 
 (defn- parse-expr-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
-  (let [[expr state-after-expr] (parse-expression state)
-        semicolon-token (first (:tokens state-after-expr))]
-    (if (= (:type semicolon-token) :semicolon)
-      [{:type :expr, :expression expr}
-       (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
-      (error/parser-error semicolon-token "Expect ';' after expression."))))
+  (let [[expr state-after-expr] (parse-expression state)]
+    (if (= (:mode state-after-expr) :recovering)
+      [nil state-after-expr]
+      (let [semicolon-token (first (:tokens state-after-expr))]
+        (if (= (:type semicolon-token) :semicolon)
+          [{:type :expr, :expression expr} (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
+          (error/parser-error state-after-expr semicolon-token "Expect ';' after expression."))))))
 
 (defn- parse-var-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [state-after-var (assoc state :tokens (rest (:tokens state)))
         name-token (first (:tokens state-after-var))]
-    (if (= (:type name-token) :identifier)
+    (if-not (= (:type name-token) :identifier)
+      (error/parser-error state-after-var name-token "Expect variable name.")
       (let [state-after-name (assoc state-after-var :tokens (rest (:tokens state-after-var)))
             next-token (first (:tokens state-after-name))]
-        (cond (= (:type next-token) :equal) (let [state-after-equal
-                                                  (assoc state-after-name :tokens (rest (:tokens state-after-name)))
-                                                  [expr state-after-expr] (parse-expression state-after-equal)
-                                                  semi-token (first (:tokens state-after-expr))]
-                                              (if (= (:type semi-token) :semicolon)
-                                                [{:type :var-stmt, :name name-token, :initialiser expr}
-                                                 (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]
-                                                (error/parser-error semi-token
-                                                                    "Expect ';' after variable declaration.")))
+        (cond (= (:type next-token) :equal)
+              (let [state-after-equal (assoc state-after-name :tokens (rest (:tokens state-after-name)))
+                    [expr state-after-expr] (parse-expression state-after-equal)]
+                (if (= (:mode state-after-expr) :recovering)
+                  [nil state-after-expr]
+                  (let [semi-token (first (:tokens state-after-expr))]
+                    (if-not (= (:type semi-token) :semicolon)
+                      (error/parser-error state-after-expr semi-token "Expect ';' after variable declaration.")
+                      [{:type :var-stmt, :name name-token, :initialiser expr}
+                       (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]))))
               (= (:type next-token) :semicolon) [{:type :var-stmt, :name name-token, :initialiser nil}
                                                  (assoc state-after-name :tokens (rest (:tokens state-after-name)))]
-              :else (error/parser-error next-token "Expect ';' or '=' after variable name.")))
-      (error/parser-error name-token "Expect variable name."))))
+              :else (error/parser-error state-after-name next-token "Expect ';' or '=' after variable name."))))))
 
 (defn- parse-if-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [state (assoc state :tokens (rest (:tokens state)))
         lparen (first (:tokens state))]
-    (when-not (= (:type lparen) :lparen) (error/parser-error lparen "Expect '(' after 'if'."))
-    (let [state (assoc state :tokens (rest (:tokens state)))
-          [condition state] (parse-expression state)
-          rparen (first (:tokens state))]
-      (when-not (= (:type rparen) :rparen) (error/parser-error rparen "Expect ')' after 'if' condition."))
+    (if-not (= (:type lparen) :lparen)
+      (error/parser-error state lparen "Expect '(' after 'if'.")
       (let [state (assoc state :tokens (rest (:tokens state)))
-            [then-branch state] (parse-statement state)
-            else-token (first (:tokens state))]
-        (if (= (:type else-token) :else)
-          (let [state (assoc state :tokens (rest (:tokens state)))
-                [else-branch state] (parse-statement state)]
-            [{:type :if, :condition condition, :then-branch then-branch, :else-branch else-branch} state])
-          [{:type :if, :condition condition, :then-branch then-branch, :else-branch nil} state])))))
+            [condition state] (parse-expression state)]
+        (if (= (:mode state) :recovering)
+          [nil state]
+          (let [rparen (first (:tokens state))]
+            (if-not (= (:type rparen) :rparen)
+              (error/parser-error state rparen "Expect ')' after 'if' condition.")
+              (let [state (assoc state :tokens (rest (:tokens state)))
+                    [then-branch state] (parse-statement state)]
+                (if (= (:mode state) :recovering)
+                  [nil state]
+                  (let [else-token (first (:tokens state))]
+                    (if (= (:type else-token) :else)
+                      (let [state (assoc state :tokens (rest (:tokens state)))
+                            [else-branch state] (parse-statement state)]
+                        (if (= (:mode state) :recovering)
+                          [nil state]
+                          [{:type :if, :condition condition, :then-branch then-branch, :else-branch else-branch}
+                           state]))
+                      [{:type :if, :condition condition, :then-branch then-branch, :else-branch nil} state])))))))))))
 
 (defn- parse-while-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [state (assoc state :tokens (rest (:tokens state)))
         lparen (first (:tokens state))]
-    (when-not (= (:type lparen) :lparen) (error/parser-error lparen "Expect '(' after 'while'."))
-    (let [state (assoc state :tokens (rest (:tokens state)))
-          [condition state] (parse-expression state)
-          rparen (first (:tokens state))]
-      (when-not (= (:type rparen) :rparen) (error/parser-error rparen "Expect ')' after 'while' condition."))
+    (if-not (= (:type lparen) :lparen)
+      (error/parser-error state lparen "Expect '(' after 'while'.")
       (let [state (assoc state :tokens (rest (:tokens state)))
-            [body state] (parse-statement state)]
-        [{:type :while, :condition condition, :body body} state]))))
+            [condition state] (parse-expression state)]
+        (if (= (:mode state) :recovering)
+          [nil state]
+          (let [rparen (first (:tokens state))]
+            (if-not (= (:type rparen) :rparen)
+              (error/parser-error state rparen "Expect ')' after 'while' condition.")
+              (let [state (assoc state :tokens (rest (:tokens state)))
+                    [body state] (parse-statement state)]
+                (if (= (:mode state) :recovering)
+                  [nil state]
+                  [{:type :while, :condition condition, :body body} state])))))))))
 
 (defn- parse-for-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [state (assoc state :tokens (rest (:tokens state)))
         lparen (first (:tokens state))]
-    (when-not (= (:type lparen) :lparen) (error/parser-error lparen "Expect '(' after 'for'."))
-    (let [state (assoc state :tokens (rest (:tokens state)))
-          init-token (first (:tokens state))
-          [init-stmt state] (cond (= (:type init-token) :semicolon) [nil (assoc state :tokens (rest (:tokens state)))]
-                                  (= (:type init-token) :var) (parse-var-statement state)
-                                  :else (let [[expr s-after-expr] (parse-expression state)
-                                              semi (first (:tokens s-after-expr))]
-                                          (when-not (= (:type semi) :semicolon)
-                                            (error/parser-error semi "Expect ';' after expression."))
-                                          [{:type :expr, :expression expr}
-                                           (assoc s-after-expr :tokens (rest (:tokens s-after-expr)))]))
-          cond-token (first (:tokens state))
-          [cond-expr state] (if (= (:type cond-token) :semicolon)
-                              [nil (assoc state :tokens (rest (:tokens state)))]
-                              (let [[expr s-after-expr] (parse-expression state)
-                                    semi (first (:tokens s-after-expr))]
-                                (when-not (= (:type semi) :semicolon)
-                                  (error/parser-error semi "Expect ';' after loop condition."))
-                                [expr (assoc s-after-expr :tokens (rest (:tokens s-after-expr)))]))
-          inc-token (first (:tokens state))
-          [inc-expr state] (if (= (:type inc-token) :rparen) [nil state] (parse-expression state))
-          rparen (first (:tokens state))]
-      (when-not (= (:type rparen) :rparen) (error/parser-error rparen "Expect ')' after for clauses."))
+    (if-not (= (:type lparen) :lparen)
+      (error/parser-error state lparen "Expect '(' after 'for'.")
       (let [state (assoc state :tokens (rest (:tokens state)))
-            [body state] (parse-statement state)
-            body-with-inc (if inc-expr {:type :block, :statements [body {:type :expr, :expression inc-expr}]} body)
-            loop-cond (if cond-expr cond-expr {:type :literal, :value true})
-            while-stmt {:type :while, :condition loop-cond, :body body-with-inc}
-            final-stmt (if init-stmt {:type :block, :statements [init-stmt while-stmt]} while-stmt)]
-        [final-stmt state]))))
+            init-token (first (:tokens state))
+            [init-stmt state] (cond (= (:type init-token) :semicolon) [nil (assoc state :tokens (rest (:tokens state)))]
+                                    (= (:type init-token) :var) (parse-var-statement state)
+                                    :else (let [[expr s-after-expr] (parse-expression state)]
+                                            (if (= (:mode s-after-expr) :recovering)
+                                              [nil s-after-expr]
+                                              (let [semi (first (:tokens s-after-expr))]
+                                                (if-not (= (:type semi) :semicolon)
+                                                  (error/parser-error s-after-expr semi "Expect ';' after expression.")
+                                                  [{:type :expr, :expression expr}
+                                                   (assoc s-after-expr :tokens (rest (:tokens s-after-expr)))])))))]
+        (if (= (:mode state) :recovering)
+          [nil state]
+          (let [cond-token (first (:tokens state))
+                [cond-expr state] (if (= (:type cond-token) :semicolon)
+                                    [nil (assoc state :tokens (rest (:tokens state)))]
+                                    (let [[expr s-after-expr] (parse-expression state)]
+                                      (if (= (:mode s-after-expr) :recovering)
+                                        [nil s-after-expr]
+                                        (let [semi (first (:tokens s-after-expr))]
+                                          (if-not (= (:type semi) :semicolon)
+                                            (error/parser-error s-after-expr semi "Expect ';' after loop condition.")
+                                            [expr (assoc s-after-expr :tokens (rest (:tokens s-after-expr)))])))))]
+            (if (= (:mode state) :recovering)
+              [nil state]
+              (let [inc-token (first (:tokens state))
+                    [inc-expr state] (if (= (:type inc-token) :rparen) [nil state] (parse-expression state))]
+                (if (= (:mode state) :recovering)
+                  [nil state]
+                  (let [rparen (first (:tokens state))]
+                    (if-not (= (:type rparen) :rparen)
+                      (error/parser-error state rparen "Expect ')' after for clauses.")
+                      (let [state (assoc state :tokens (rest (:tokens state)))
+                            [body state] (parse-statement state)]
+                        (if (= (:mode state) :recovering)
+                          [nil state]
+                          (let [body-with-inc (if inc-expr
+                                                {:type :block, :statements [body {:type :expr, :expression inc-expr}]}
+                                                body)
+                                loop-cond (if cond-expr cond-expr {:type :literal, :value true})
+                                while-stmt {:type :while, :condition loop-cond, :body body-with-inc}
+                                final-stmt (if init-stmt {:type :block, :statements [init-stmt while-stmt]} while-stmt)]
+                            [final-stmt state]))))))))))))))
 
 (defn- parse-function
   {:malli/schema [:=> [:cat ParserStateSchema :enum :function :method] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state kind]
   (let [state (if (= kind :function) (assoc state :tokens (rest (:tokens state))) state)
         name-token (first (:tokens state))]
-    (when-not (= (:type name-token) :identifier) (error/parser-error name-token (str "Expect " (name kind) " name.")))
-    (let [state (assoc state :tokens (rest (:tokens state)))
-          lparen (first (:tokens state))]
-      (when-not (= (:type lparen) :lparen) (error/parser-error lparen (str "Expect '(' after " (name kind) " name.")))
+    (if-not (= (:type name-token) :identifier)
+      (error/parser-error state name-token (str "Expect " (name kind) " name."))
       (let [state (assoc state :tokens (rest (:tokens state)))
-            [params state-after-params]
+            lparen (first (:tokens state))]
+        (if-not (= (:type lparen) :lparen)
+          (error/parser-error state lparen (str "Expect '(' after " (name kind) " name."))
+          (let [state (assoc state :tokens (rest (:tokens state)))]
             (if (= (:type (first (:tokens state))) :rparen)
-              [[] state]
-              (loop [params []
-                     s state]
-                (when (>= (count params) 255)
-                  (error/parser-error (first (:tokens s)) "Can't have more than 255 parameters."))
-                (let [param-token (first (:tokens s))]
-                  (when-not (= (:type param-token) :identifier)
-                    (error/parser-error param-token "Expect parameter name."))
-                  (let [params (conj params param-token)
-                        s-after-param (assoc s :tokens (rest (:tokens s)))
-                        next-token (first (:tokens s-after-param))]
-                    (if (= (:type next-token) :comma)
-                      (recur params (assoc s-after-param :tokens (rest (:tokens s-after-param))))
-                      [params s-after-param])))))
-            rparen (first (:tokens state-after-params))]
-        (when-not (= (:type rparen) :rparen) (error/parser-error rparen "Expect ')' after parameters."))
-        (let [state (assoc state-after-params :tokens (rest (:tokens state-after-params)))
-              lbrace (first (:tokens state))]
-          (when-not (= (:type lbrace) :lbrace)
-            (error/parser-error lbrace (str "Expect '{' before " (name kind) " body.")))
-          (let [state (assoc state :tokens (rest (:tokens state)))
-                [block-stmt state] (parse-block state)]
-            [{:type :function, :name name-token, :params params, :body (:statements block-stmt)} state]))))))
+              (let [rparen (first (:tokens state))
+                    state (assoc state :tokens (rest (:tokens state)))
+                    lbrace (first (:tokens state))]
+                (if-not (= (:type lbrace) :lbrace)
+                  (error/parser-error state lbrace (str "Expect '{' before " (name kind) " body."))
+                  (let [state (assoc state :tokens (rest (:tokens state)))
+                        [block-stmt state] (parse-block state)]
+                    (if (= (:mode state) :recovering)
+                      [nil state]
+                      [{:type :function, :name name-token, :params [], :body (:statements block-stmt)} state]))))
+              (let [[params state-after-params]
+                    (loop [params []
+                           s state]
+                      (if (>= (count params) 255)
+                        (error/parser-error s (first (:tokens s)) "Can't have more than 255 parameters.")
+                        (let [param-token (first (:tokens s))]
+                          (if-not (= (:type param-token) :identifier)
+                            (error/parser-error s param-token "Expect parameter name.")
+                            (let [params (conj params param-token)
+                                  s-after-param (assoc s :tokens (rest (:tokens s)))
+                                  next-token (first (:tokens s-after-param))]
+                              (if (= (:type next-token) :comma)
+                                (recur params (assoc s-after-param :tokens (rest (:tokens s-after-param))))
+                                [params s-after-param]))))))]
+                (if (= (:mode state-after-params) :recovering)
+                  [nil state-after-params]
+                  (let [rparen (first (:tokens state-after-params))]
+                    (if-not (= (:type rparen) :rparen)
+                      (error/parser-error state-after-params rparen "Expect ')' after parameters.")
+                      (let [state-after-rparen (assoc state-after-params :tokens (rest (:tokens state-after-params)))
+                            lbrace (first (:tokens state-after-rparen))]
+                        (if-not (= (:type lbrace) :lbrace)
+                          (error/parser-error state-after-rparen lbrace (str "Expect '{' before " (name kind) " body."))
+                          (let [state-after-lbrace
+                                (assoc state-after-rparen :tokens (rest (:tokens state-after-rparen)))
+                                [block-stmt final-state] (parse-block state-after-lbrace)]
+                            (if (= (:mode final-state) :recovering)
+                              [nil final-state]
+                              [{:type :function, :name name-token, :params params, :body (:statements block-stmt)}
+                               final-state])))))))))))))))
 
 (defn- parse-return-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
@@ -321,48 +413,61 @@
         next-token (first (:tokens state))]
     (if (= (:type next-token) :semicolon)
       [{:type :return, :keyword return-token, :value nil} (assoc state :tokens (rest (:tokens state)))]
-      (let [[expr state-after-expr] (parse-expression state)
-            semi-token (first (:tokens state-after-expr))]
-        (when-not (= (:type semi-token) :semicolon) (error/parser-error semi-token "Expect ';' after return value."))
-        [{:type :return, :keyword return-token, :value expr}
-         (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))]))))
+      (let [[expr state-after-expr] (parse-expression state)]
+        (if (= (:mode state-after-expr) :recovering)
+          [nil state-after-expr]
+          (let [semi-token (first (:tokens state-after-expr))]
+            (if-not (= (:type semi-token) :semicolon)
+              (error/parser-error state-after-expr semi-token "Expect ';' after return value.")
+              [{:type :return, :keyword return-token, :value expr}
+               (assoc state-after-expr :tokens (rest (:tokens state-after-expr)))])))))))
 
 (defn- parse-class-declaration
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
   [state]
   (let [state (assoc state :tokens (rest (:tokens state)))
         name-token (first (:tokens state))]
-    (when-not (= (:type name-token) :identifier) (error/parser-error name-token "Expect class name."))
-    (let [state-after-name (assoc state :tokens (rest (:tokens state)))
-          maybe-less (first (:tokens state-after-name))
-          [superclass state-after-super] (if (= (:type maybe-less) :less)
-                                           (let [state-after-less
-                                                 (assoc state-after-name :tokens (rest (:tokens state-after-name)))
-                                                 super-name (first (:tokens state-after-less))]
-                                             (when-not (= (:type super-name) :identifier)
-                                               (error/parser-error super-name "Expect superclass name."))
-                                             [{:type :variable, :name super-name}
-                                              (assoc state-after-less :tokens (rest (:tokens state-after-less)))])
-                                           [nil state-after-name])
-          lbrace (first (:tokens state-after-super))]
-      (when-not (= (:type lbrace) :lbrace) (error/parser-error (or lbrace name-token) "Expect '{' before class body."))
-      (loop [methods []
-             current-state (assoc state-after-super :tokens (rest (:tokens state-after-super)))]
-        (let [token (first (:tokens current-state))]
-          (cond (or (nil? token) (= (:type token) :eof)) (error/parser-error token "Expect '}' after class body.")
-                (= (:type token) :rbrace) [{:type :class, :name name-token, :superclass superclass, :methods methods}
-                                           (assoc current-state :tokens (rest (:tokens current-state)))]
-                :else (let [[method next-state] (parse-function current-state :method)]
-                        (recur (conj methods method) next-state))))))))
+    (if-not (= (:type name-token) :identifier)
+      (error/parser-error state name-token "Expect class name.")
+      (let [state-after-name (assoc state :tokens (rest (:tokens state)))
+            maybe-less (first (:tokens state-after-name))
+            [superclass state-after-super]
+            (if (= (:type maybe-less) :less)
+              (let [state-after-less (assoc state-after-name :tokens (rest (:tokens state-after-name)))
+                    super-name (first (:tokens state-after-less))]
+                (if-not (= (:type super-name) :identifier)
+                  (error/parser-error state-after-less super-name "Expect superclass name.")
+                  [{:type :variable, :name super-name}
+                   (assoc state-after-less :tokens (rest (:tokens state-after-less)))]))
+              [nil state-after-name])]
+        (if (= (:mode state-after-super) :recovering)
+          [nil state-after-super]
+          (let [lbrace (first (:tokens state-after-super))]
+            (if-not (= (:type lbrace) :lbrace)
+              (error/parser-error state-after-super (or lbrace name-token) "Expect '{' before class body.")
+              (loop [methods []
+                     current-state (assoc state-after-super :tokens (rest (:tokens state-after-super)))]
+                (let [token (first (:tokens current-state))]
+                  (cond (or (nil? token) (= (:type token) :eof))
+                        (error/parser-error current-state token "Expect '}' after class body.")
+                        (= (:type token) :rbrace)
+                        [{:type :class, :name name-token, :superclass superclass, :methods methods}
+                         (assoc current-state :tokens (rest (:tokens current-state)))]
+                        :else (let [[method next-state] (parse-function current-state :method)]
+                                (if (= (:mode next-state) :recovering)
+                                  [nil next-state]
+                                  (recur (conj methods method) next-state)))))))))))))
 
 (defn parse-declaration
-  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
+  {:malli/schema [:=> [:cat ParserStateSchema] [:tuple [:maybe ast/StmtSchema] ParserStateSchema]]}
   [state]
-  (let [token (first (:tokens state))]
-    (cond (= (:type token) :class) (parse-class-declaration state)
-          (= (:type token) :fun) (parse-function state :function)
-          (= (:type token) :var) (parse-var-statement state)
-          :else (parse-statement state))))
+  (let [token (first (:tokens state))
+        [stmt next-state]
+        (cond (= (:type token) :class) (parse-class-declaration state)
+              (= (:type token) :fun) (parse-function state :function)
+              (= (:type token) :var) (parse-var-statement state)
+              :else (parse-statement state))]
+    (if (= (:mode next-state) :recovering) [nil (synchronise next-state)] [stmt next-state])))
 
 (defn parse-statement
   {:malli/schema [:=> [:cat ParserStateSchema] [:tuple ast/StmtSchema ParserStateSchema]]}
@@ -384,4 +489,5 @@
     (let [token (first (:tokens state))]
       (if (or (nil? token) (= (:type token) :eof))
         [statements state]
-        (let [[stmt next-state] (parse-declaration state)] (recur (conj statements stmt) next-state))))))
+        (let [[stmt next-state] (parse-declaration state)]
+          (recur (if stmt (conj statements stmt) statements) next-state))))))
