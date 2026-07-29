@@ -1,6 +1,5 @@
-# clox/BUILD
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
-# The core interpreter engine
 cc_library(
     name = "libclox",
     srcs = [],

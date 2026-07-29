@@ -1,5 +1,7 @@
 bazel_dep(name = "rules_java", version = "8.11.0")
 
+bazel_dep(name = "rules_cc", version = "0.2.22")
+
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
 git_override(
     module_name = "hedron_compile_commands",
