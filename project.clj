@@ -3,7 +3,8 @@
   :url "http://example.com/FIXME"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :plugins [[lein-zprint "1.3.0"]]
+  :plugins [[lein-zprint "1.3.0"]
+            [com.github.clj-kondo/lein-clj-kondo "0.2.5"]]
   :source-paths ["cljlox/src"]
   :test-paths ["cljlox/test"]
   :dependencies [[org.clojure/clojure "1.12.4"]]

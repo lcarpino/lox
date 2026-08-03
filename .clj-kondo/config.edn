@@ -1,0 +1,1 @@
+{:lint-as {lox.resolver/with-scope clojure.core/let}}
