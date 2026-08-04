@@ -25,20 +25,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: Setup Clojure
         uses: DeLaGuardo/setup-clojure@13.1
         with:
           cli: latest
 
       - name: Run cljlox tests
-        run: clj -M:test
+        run: clojure -M:test
 
       - name: Build cljlox
-        run: clj -T:build uber
+        run: clojure -T:build uber
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
         with:
           sdk: 2.19.6
+      - name: Install Dart dependencies
+        run: dart pub get -C craftinginterpreters/tool/
       - name: Run Official Test Suite
         run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljlox.sh)
