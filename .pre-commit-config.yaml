@@ -15,7 +15,7 @@ repos:
     rev: v3.1.0
     hooks:
       - id: prettier
-        types: [yaml]
+        types_or: [yaml, html, css, javascript, json]
 
   # clojure code formatting and linting
   - repo: local
