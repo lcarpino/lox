@@ -1,6 +1,9 @@
 (ns lox.resolver
   (:require [lox.ast :as ast]
-            [lox.error :as error]))
+            [lox.error :as error]
+            #?(:clj [lox.macros :refer [with-scope]]
+               :cljs [lox.macros :refer-macros [with-scope]]))
+  (:refer-clojure :exclude [resolve]))
 
 (def initial-state {:scopes '(), :function-type :none, :class-type :none, :errors []})
 
@@ -8,11 +11,6 @@
 
 (defmulti resolve-stmt ^:private (fn [state stmt] (:type stmt)))
 
-(defmacro with-scope
-  [[state-binding initial-state] & body]
-  `(let [~state-binding (update ~initial-state :scopes #(cons {} %))
-         [result# state-after-body#] (do ~@body)]
-     [result# (update state-after-body# :scopes rest)]))
 
 (defn- declare-var
   [state name-token]

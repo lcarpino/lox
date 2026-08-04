@@ -1,0 +1,61 @@
+name: cljslox
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cljlox/**"
+      - "deps.edn"
+      - "shadow-cljs.edn"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/cljslox.sh"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cljlox/**"
+      - "deps.edn"
+      - "shadow-cljs.edn"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/cljslox.sh"
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test cljslox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@13.1
+        with:
+          cli: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build cljslox
+        run: npx shadow-cljs compile node
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6
+
+      - name: Install Dart dependencies
+        run: dart pub get -C craftinginterpreters/tool/
+
+      - name: Run Official Test Suite
+        run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljslox.sh)

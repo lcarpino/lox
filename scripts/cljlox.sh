@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 PROJECT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)/.."
-JAR_PATH="$PROJECT_DIR/target/cljlox.jar"
+JAR_PATH="$PROJECT_DIR/target/jvm/cljlox.jar"
 
 if [ ! -f "$JAR_PATH" ]; then
     echo "Error: $JAR_PATH not found." >&2

@@ -27,9 +27,12 @@
    "var"    :var,
    "while"  :while})
 
-(defn- digit? [c] (and c (Character/isDigit (char c))))
+(def ^:private digit-chars (set "0123456789"))
+(def ^:private alpha-chars (set "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 
-(defn- alpha? [c] (and c (or (Character/isLetter (char c)) (= c \_))))
+(defn- digit? [c] (contains? digit-chars c))
+
+(defn- alpha? [c] (or (contains? alpha-chars c) (= c \_)))
 
 (defn- alpha-numeric? [c] (or (alpha? c) (digit? c)))
 
@@ -68,7 +71,7 @@
       (cond (digit? c) (recur (update state :chars rest) (conj acc c))
             (and (= c \.) (digit? next-c)) (recur (update state :chars rest) (conj acc c))
             :else (let [lexeme (apply str acc)
-                        value (Double/parseDouble lexeme)]
+                        value (parse-double lexeme)]
                     [{:type :number, :lexeme lexeme, :literal value, :line (:line state)} state])))))
 
 (defn- scan-identifier

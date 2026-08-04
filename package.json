@@ -1,0 +1,12 @@
+{
+  "name": "cljslox",
+  "version": "1.0.0",
+  "description": "ClojureScript Lox Interpreter",
+  "scripts": {
+    "start": "shadow-cljs watch web node",
+    "build": "shadow-cljs release web node"
+  },
+  "devDependencies": {
+    "shadow-cljs": "^2.28.3"
+  }
+}
