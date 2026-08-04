@@ -35,3 +35,18 @@ repos:
         types: [clojure]
         exclude_types: [edn]
         require_serial: true
+
+  # C / C++ formatting
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v22.1.8
+    hooks:
+      - id: clang-format
+        types_or: [c, c++]
+
+  # Java formatting
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.16.0
+    hooks:
+      - id: pretty-format-java
+        args: [--autofix]
+        types: [java]
