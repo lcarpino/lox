@@ -22,7 +22,7 @@
                                   "-0"
                                   (if (== val (Math/floor val)) (format "%d" (long val)) (str val)))
                                 (if (== val (Math/floor val)) (format "%d" (long val)) (str val)))
-                         :cljs (str val))
+                         :cljs (if (js/Object.is val -0.0) "-0" (str val)))
         (and (map? val) (= (:type val) :lox-class)) (:name val)
         (and (map? val) (= (:type val) :lox-instance)) (str (get-in val [:class :name]) " instance")
         (and (map? val) (= (:type val) :lox-function)) (str "<fn " (:lexeme (:name (:stmt val))) ">")

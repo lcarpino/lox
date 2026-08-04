@@ -8,7 +8,9 @@
 
 (defn- report-errors!
   [errors]
-  (when (seq errors) (binding [*out* *err*] (doseq [err errors] (println (error/format-error err))))))
+  (when (seq errors)
+    #?(:clj (binding [*out* *err*] (doseq [err errors] (println (error/format-error err))))
+       :cljs (doseq [err errors] (js/console.error (error/format-error err))))))
 
 (defn- compile-ast
   [source]
@@ -46,8 +48,11 @@
            (let [data (ex-data e)
                  err-type (:type data)]
              (cond (= err-type :evaluator-error)
-                   (do (binding [*out* *err*] (println (str (ex-message e) "\n[line " (:line (:token data)) "]")))
+                   (do #?(:clj (binding [*out* *err*]
+                                 (println (str (ex-message e) "\n[line " (:line (:token data)) "]")))
+                          :cljs (js/console.error (str (ex-message e) "\n[line " (:line (:token data)) "]")))
                        {:env env, :exit-code 70})
-                   :else (do (binding [*out* *err*] (println "System Error: " (ex-message e)))
+                   :else (do #?(:clj (binding [*out* *err*] (println "System Error: " (ex-message e)))
+                                :cljs (js/console.error "System Error: " (ex-message e)))
                              {:env env, :exit-code 1})))))
     {:env env, :exit-code 65}))
