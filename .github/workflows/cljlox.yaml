@@ -33,10 +33,10 @@ jobs:
           cli: latest
 
       - name: Run cljlox tests
-        run: clj -M:test
+        run: clojure -M:test
 
       - name: Build cljlox
-        run: clj -T:build uber
+        run: clojure -T:build uber
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
