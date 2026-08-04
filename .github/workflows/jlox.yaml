@@ -1,0 +1,31 @@
+name: jlox
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "jlox/**"
+      - "scripts/jlox.sh"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "jlox/**"
+      - "scripts/jlox.sh"
+
+jobs:
+  build-and-test:
+    name: Build & Test jlox (Java)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build jlox
+        run: bazel build //jlox/com/craftinginterpreters/lox:lox_deploy.jar
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6
+      - name: Run Official Test Suite
+        run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/jlox.sh)
