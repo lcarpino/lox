@@ -40,7 +40,9 @@
              (let [stmt (first remaining-stmts)
                    result (evaluator/execute stmt current-env)]
                (recur result (rest remaining-stmts)))))
-         (catch Exception e
+         (catch #?(:clj Exception
+                   :cljs js/Error)
+           e
            (let [data (ex-data e)
                  err-type (:type data)]
              (cond (= err-type :evaluator-error)
