@@ -15,7 +15,7 @@
    :main-opts ["-m" "kaocha.runner"]}
 
   :run
-  {:main-opts ["-m" "lox.core"]}
+  {:main-opts ["-m" "lox.main"]}
 
   :build
   {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}}

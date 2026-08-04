@@ -4,7 +4,10 @@
 (def ^:private native-functions
   {"clock" {:type    :native-function,
             :arity   0,
-            :call-fn (fn [_] (/ (double (System/currentTimeMillis)) 1000.0))}
+            :call-fn (fn [_]
+                       (/ (double #?(:clj (System/currentTimeMillis)
+                                     :cljs (.getTime (js/Date.))))
+                          1000.0))}
   })
 
 (defn create-global-env
