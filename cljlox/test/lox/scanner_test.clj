@@ -8,6 +8,6 @@
   (testing "Scanner never crashes and always returns valid Tokens on random strings"
     (let [random-strings (mg/sample :string {:size 100})]
       (doseq [source random-strings]
-        (let [tokens (scanner/scan source)]
+        (let [[tokens _] (scanner/scan source)]
           (is (m/validate scanner/ScannerOutputSchema tokens)
               (str "Scanner output failed validation for source: " (pr-str source))))))))
