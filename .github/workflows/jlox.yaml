@@ -36,5 +36,7 @@ jobs:
         uses: dart-lang/setup-dart@v1
         with:
           sdk: 2.19.6
+      - name: Install Dart dependencies
+        run: dart pub get -C craftinginterpreters/tool/
       - name: Run Official Test Suite
         run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/jlox.sh)
