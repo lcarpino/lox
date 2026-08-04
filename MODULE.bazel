@@ -8,3 +8,18 @@ git_override(
     remote = "https://github.com/helly25/bazel-compile-commands-extractor.git",
     commit = "1f9360db1834d115c48279d38a97f30d64d3fd4a",
 )
+
+bazel_dep(name = "rules_clojure", version = "0.5")
+git_override(
+    module_name = "rules_clojure",
+    remote = "https://github.com/griffinbank/rules_clojure",
+    commit = "d5331086578022a1824a30ff513d5cf00de62e3b",
+)
+
+deps = use_extension("@rules_clojure//:extensions.bzl", "deps")
+deps.install(
+    repo_name = "deps",
+    deps_edn = "//:deps.edn",
+    aliases = [],
+)
+use_repo(deps, "deps")
