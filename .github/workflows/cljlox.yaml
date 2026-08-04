@@ -17,6 +17,7 @@ on:
       - "deps.edn"
       - "build.clj"
       - "scripts/cljlox.sh"
+  workflow_dispatch:
 
 jobs:
   build-and-test:
