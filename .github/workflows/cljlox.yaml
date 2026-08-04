@@ -1,0 +1,44 @@
+name: cljlox
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cljlox/**"
+      - "deps.edn"
+      - "build.clj"
+      - "scripts/cljlox.sh"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cljlox/**"
+      - "deps.edn"
+      - "build.clj"
+      - "scripts/cljlox.sh"
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test cljlox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@13.1
+        with:
+          cli: latest
+
+      - name: Run cljlox tests
+        run: clj -M:test
+
+      - name: Build cljlox
+        run: clj -T:build uber
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 2.19.6
+      - name: Run Official Test Suite
+        run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljlox.sh)
