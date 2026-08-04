@@ -128,5 +128,9 @@ sudo apt-get update && sudo apt-get install dart=2.19.6-1 && sudo apt-mark hold 
 ```
 
 ```bash
-dart tool/bin/test.dart jlox --interpreter scripts/cljlox.sh
+dart pub get -C craftinginterpreters/tool/
+```
+
+```bash
+(cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljlox.sh)
 ```
