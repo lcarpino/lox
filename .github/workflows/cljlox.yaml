@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test cljlox (Clojure)
+    name: Build & Test cljlox
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
