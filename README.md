@@ -58,8 +58,16 @@ bazel run //jlox/com/craftinginterpreters/tool:generate_ast $(git rev-parse --sh
 different paradigm to `jlox`. `cljlox` completely eschews mutation, adopting a data-flow style of programming where all
 of the functions are completely pure and we make sure of plan data structures rather than objects. Note that, because
 `Lox` itself is a language that makes heavy use of mutation we have to make one concession to impurity in our memory
-store so that it is possible to mutate values pointed to by references. We use Leiningen for managing and building
-`cljlox`.
+store so that it is possible to mutate values pointed to by references. We use `deps.edn` [Clojure
+tools](https://github.com/clojure/brew-install) for managing and building `cljlox`.
+
+### Prerequisites
+
+To build and run `cljlox`, you must have Clojure tools installed. On Linux, you can install it using:
+
+```bash
+curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh && chmod +x linux-install.sh && sudo ./linux-install.sh && rm linux-install.sh
+```
 
 Major changes compared to `jlox`:
 
@@ -77,18 +85,18 @@ One of the caveats with the current approach is that there is no garbage collect
 to grow without limit. I may address this at some point, but for this project, where the goal was to learn about
 compilers and interpreters, I do not see this as a particularly serious limitation.
 
-### Building `cljlox` with `lein`
+### Building `cljlox` with `deps.edn`
 
 Build the interpreter as a standalone jar file which can be used with a standard Java runtime environment.
 
 ```bash
-lein uberjar
+clj -T:build uber
 ```
 
 Run a demo program.
 
 ```bash
-lein run $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
+clj -M:run $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
 ```
 
 ### Building `cljlox` as a native application using `GraalVM`
@@ -99,10 +107,10 @@ Using GraalVM is arguably a little bit overkill for this project. But, given tha
  entire Lox test suite run and pass in only a few seconds that is very satisfying.
 
 ```bash
-lein uberjar \
+clj -T:build uber \
 && mkdir -p $(git rev-parse --show-toplevel)/target/graalvm \
 && native-image \
-  -jar target/uberjar/cljlox-0.1.0-SNAPSHOT-standalone.jar \
+  -jar target/cljlox.jar \
   --no-fallback \
   --initialize-at-build-time \
   -H:Name=cljlox \
