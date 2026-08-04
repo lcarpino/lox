@@ -17,4 +17,21 @@ repos:
       - id: prettier
         types: [yaml]
 
-  # TODO: clojure code formatting
+  # clojure code formatting and linting
+  - repo: local
+    hooks:
+      - id: zprint
+        name: zprint
+        entry: ./scripts/ci/zprint.sh
+        language: script
+        types: [clojure]
+        exclude_types: [edn]
+        require_serial: true
+
+      - id: clj-kondo
+        name: clj-kondo
+        entry: ./scripts/ci/clj-kondo.sh
+        language: script
+        types: [clojure]
+        exclude_types: [edn]
+        require_serial: true

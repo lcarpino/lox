@@ -1,0 +1,22 @@
+{:paths ["cljlox/src"]
+
+ :deps
+ {org.clojure/clojure {:mvn/version "1.12.4"}}
+
+ :aliases
+ {:dev
+  {:extra-paths ["cljlox/dev" "cljlox/test"]
+   :extra-deps {metosin/malli {:mvn/version "0.20.1"}}}
+
+  :test
+  {:extra-paths ["cljlox/test"]
+   :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                metosin/malli {:mvn/version "0.20.1"}}
+   :main-opts ["-m" "kaocha.runner"]}
+
+  :run
+  {:main-opts ["-m" "lox.core"]}
+
+  :build
+  {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}}
+   :ns-default build}}}

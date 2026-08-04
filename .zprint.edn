@@ -1,0 +1,5 @@
+{:map    {:justify? true, :respect-nl? true},
+ :vector {:respect-nl? true, :wrap? false},
+ :old?   false,
+ :style  :community,
+ :width  120}
