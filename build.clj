@@ -1,11 +1,11 @@
 (ns build
   (:require [clojure.tools.build.api :as b]))
 
-(def class-dir "target/classes")
+(def class-dir "target/jvm/classes")
 (def basis (b/create-basis {:project "deps.edn"}))
-(def uber-file "target/cljlox.jar")
+(def uber-file "target/jvm/cljlox.jar")
 
-(defn clean [_] (b/delete {:path "target"}))
+(defn clean [_] (b/delete {:path "target/jvm"}))
 
 (defn uber
   [_]
