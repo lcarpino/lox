@@ -21,7 +21,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test cljlox
+    name: Test cljlox (official dart test harness)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,3 +46,13 @@ jobs:
         run: dart pub get -C craftinginterpreters/tool/
       - name: Run Official Test Suite
         run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljlox.sh)
+
+  test-bazel:
+    name: Test cljlox (clojure test harness)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Run cljlox Bazel tests
+        run: bazelisk test //cljlox:cljlox_test

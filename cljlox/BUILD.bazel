@@ -1,0 +1,57 @@
+load("@rules_clojure//:rules.bzl", "clojure_binary", "clojure_library")
+
+clojure_library(
+    name = "cljlox_lib",
+    srcs = [
+        "src/lox/main.clj",
+    ],
+    resources = [
+        "src/lox/analyser.cljc",
+        "src/lox/ast.cljc",
+        "src/lox/core.cljc",
+        "src/lox/environment.cljc",
+        "src/lox/error.cljc",
+        "src/lox/evaluator.cljc",
+        "src/lox/macros.cljc",
+        "src/lox/main.clj",
+        "src/lox/memory.cljc",
+        "src/lox/native.cljc",
+        "src/lox/parser.cljc",
+        "src/lox/printer.cljc",
+        "src/lox/resolver.cljc",
+        "src/lox/scanner.cljc",
+        "src/lox/token.cljc",
+    ],
+    aot = ["lox.main"],
+    resource_strip_prefix = "cljlox/src",
+    deps = [
+        "@deps//:org_clojure_clojure",
+        "@deps//:org_clojure_core_specs_alpha",
+        "@deps//:org_clojure_spec_alpha",
+    ],
+)
+
+clojure_binary(
+    name = "cljlox",
+    main_class = "lox.main",
+    deps = [
+        ":cljlox_lib",
+    ],
+)
+
+java_test(
+    name = "cljlox_test",
+    main_class = "tool.test_harness",
+    size = "large",
+    use_testrunner = False,
+    runtime_deps = ["//tool:test-harness-lib"],
+    data = [
+        ":cljlox",
+        "//:test_data",
+    ],
+    args = [
+        "--interpreter", "$(location //cljlox)",
+        "--dir", "craftinginterpreters/test",
+        "--suite", "jlox",
+    ],
+)

@@ -1,7 +1,10 @@
 {:paths ["cljlox/src"]
 
+ ;; NOTE: currently the versions here must much those used by rules_clojure, otherwise we will encounter issues with
+ ;; maven not being able to download them. Seems like a bug.
  :deps
- {org.clojure/clojure {:mvn/version "1.12.4"}}
+ {org.clojure/clojure {:mvn/version "1.12.1"}
+  org.clojure/tools.cli {:mvn/version "1.3.250"}}
 
  :aliases
  {:dev

@@ -43,3 +43,19 @@ java_binary(
     main_class = "com.craftinginterpreters.lox.AstPrinter",
     visibility = ["//visibility:public"],
 )
+
+java_test(
+    name = "jlox_test",
+    main_class = "tool.test_harness",
+    use_testrunner = False,
+    runtime_deps = ["//tool:test-harness-lib"],
+    data = [
+        ":lox",
+        "//:test_data",
+    ],
+    args = [
+        "--interpreter", "$(location :lox)",
+        "--dir", "craftinginterpreters/test",
+        "--suite", "jlox",
+    ],
+)

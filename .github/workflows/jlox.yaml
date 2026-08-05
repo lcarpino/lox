@@ -17,7 +17,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test jlox
+    name: Test jlox (official dart test harness)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,3 +40,13 @@ jobs:
         run: dart pub get -C craftinginterpreters/tool/
       - name: Run Official Test Suite
         run: (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/jlox.sh)
+
+  test-bazel:
+    name: Test jlox (clojure test harness)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Run jlox Bazel tests
+        run: bazelisk test //jlox/com/craftinginterpreters/lox:jlox_test
