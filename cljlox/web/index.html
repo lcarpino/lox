@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>cljslox web</title>
+    <link rel="stylesheet" href="css/index.css" />
+  </head>
+
+  <body>
+    <h1>cljslox web</h1>
+    <div class="container">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Editor</h2>
+          <div class="actions">
+            <button id="run-btn">Run Code</button>
+            <button id="clear-btn">Clear Output</button>
+          </div>
+        </div>
+        <textarea
+          id="code-editor"
+          spellcheck="false"
+          placeholder='var greeting = "Hello, world!";&#10;print greeting;'
+        ></textarea>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Output</h2>
+        </div>
+        <div id="console-output"></div>
+      </div>
+    </div>
+    <script src="js/main.js"></script>
+  </body>
+</html>
