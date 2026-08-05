@@ -1,0 +1,21 @@
+load("@rules_clojure//:rules.bzl", "clojure_library", "clojure_binary")
+
+clojure_library(
+    name = "test-harness-lib",
+    srcs = ["src/tool/test_harness.clj"],
+    resources = ["src/tool/suites.edn"],
+    resource_strip_prefix = "tool/src",
+    aot = ["tool.test-harness"],
+    deps = [
+        "@deps//:org_clojure_clojure",
+        "@deps//:org_clojure_tools_cli",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+clojure_binary(
+    name = "test-harness",
+    main_class = "tool.test_harness",
+    deps = [":test-harness-lib"],
+    visibility = ["//visibility:public"],
+)

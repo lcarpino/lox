@@ -38,3 +38,20 @@ clojure_binary(
         ":cljlox_lib",
     ],
 )
+
+java_test(
+    name = "cljlox_test",
+    main_class = "tool.test_harness",
+    size = "large",
+    use_testrunner = False,
+    runtime_deps = ["//tool:test-harness-lib"],
+    data = [
+        ":cljlox",
+        "//:test_data",
+    ],
+    args = [
+        "--interpreter", "$(location //cljlox)",
+        "--dir", "craftinginterpreters/test",
+        "--suite", "jlox",
+    ],
+)

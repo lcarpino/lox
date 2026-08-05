@@ -1,1 +1,7 @@
 exports_files(["deps.edn"])
+
+filegroup(
+    name = "test_data",
+    srcs = glob(["craftinginterpreters/test/**/*.lox"]),
+    visibility = ["//visibility:public"],
+)
