@@ -1,4 +1,5 @@
 load("@rules_clojure//:rules.bzl", "clojure_binary", "clojure_library")
+load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 
 clojure_library(
     name = "cljlox_lib",
@@ -39,6 +40,22 @@ clojure_binary(
     ],
 )
 
+native_image(
+    name = "cljlox_native",
+    executable_name = "cljlox-native",
+    main_class = "lox.main",
+    deps = [
+        ":cljlox_lib",
+    ],
+    extra_args = [
+        "--no-fallback",
+        "--initialize-at-build-time",
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+    ],
+)
+
 java_test(
     name = "cljlox_test",
     main_class = "tool.test_harness",
@@ -46,11 +63,11 @@ java_test(
     use_testrunner = False,
     runtime_deps = ["//tool:test-harness-lib"],
     data = [
-        ":cljlox",
+        ":cljlox_native",
         "//:test_data",
     ],
     args = [
-        "--interpreter", "$(location //cljlox)",
+        "--interpreter", "$(location :cljlox_native)",
         "--dir", "craftinginterpreters/test",
         "--suite", "jlox",
     ],

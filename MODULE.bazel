@@ -23,3 +23,15 @@ deps.install(
     aliases = [],
 )
 use_repo(deps, "deps")
+
+bazel_dep(name = "rules_graalvm", version = "0.11.1")
+
+gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
+gvm.graalvm(
+    name = "graalvm",
+    distribution = "ce",
+    java_version = "21",
+    version = "21.0.2",
+)
+use_repo(gvm, "graalvm", "graalvm_toolchains")
+register_toolchains("@graalvm_toolchains//:all")
