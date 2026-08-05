@@ -49,4 +49,4 @@ jobs:
         with:
           submodules: true
       - name: Run jlox Bazel tests
-        run: bazel test //jlox/com/craftinginterpreters/lox:jlox_test
+        run: bazelisk test //jlox/com/craftinginterpreters/lox:jlox_test

@@ -55,4 +55,4 @@ jobs:
         with:
           submodules: true
       - name: Run cljlox Bazel tests
-        run: bazel test //cljlox:cljlox_test
+        run: bazelisk test //cljlox:cljlox_test
