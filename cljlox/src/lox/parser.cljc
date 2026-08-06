@@ -6,7 +6,7 @@
 (def ParserStateSchema
   [:map
    [:tokens [:sequential TokenSchema]]
-   [:errors {:optional true} [:sequential :any]]
+   [:errors [:sequential error/ParserErrorSchema]]
    [:mode {:optional true} [:enum :normal :recovering]]])
 
 (def ParserFnSchema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]])
