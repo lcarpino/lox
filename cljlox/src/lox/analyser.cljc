@@ -6,21 +6,22 @@
   [:map
    [:function-type [:enum :none :function :method :initialiser]]
    [:class-type [:enum :none :class :subclass]]
-   [:errors {:optional true} [:sequential :any]]])
+   [:errors [:sequential error/AnalyserErrorSchema]]])
 
 (def initial-context
   {:function-type :none,
    :class-type    :none})
 
 (defmulti analyse-expr
-  ^:private {:malli/schema [:=> [:cat ContextSchema ast/ExprSchema] [:tuple :any ContextSchema]]}
+  ^:private {:malli/schema [:=> [:cat ContextSchema ast/ExprSchema] [:tuple :nil ContextSchema]]}
   (fn [context expr] (:type expr)))
 
 (defmulti analyse-stmt
-  ^:private {:malli/schema [:=> [:cat ContextSchema ast/StmtSchema] [:tuple :any ContextSchema]]}
+  ^:private {:malli/schema [:=> [:cat ContextSchema ast/StmtSchema] [:tuple :nil ContextSchema]]}
   (fn [context stmt] (:type stmt)))
 
 (defn analyse
+  {:malli/schema [:=> [:cat [:sequential ast/StmtSchema]] [:tuple [:sequential ast/StmtSchema] ContextSchema]]}
   [statements]
   (loop [stmts statements
          ctx (assoc initial-context :errors [])]
