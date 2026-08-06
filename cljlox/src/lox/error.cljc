@@ -36,15 +36,16 @@
 
 
 
-(defmulti format-error :type)
+(defmulti format-error
+  {:malli/schema
+   [:=>
+    [:cat [:or ScannerErrorSchema ParserErrorSchema AnalyserErrorSchema ResolverErrorSchema EvaluatorErrorSchema]]
+    :string]}
+  :type)
 
-(defmethod format-error :scanner-error
-  {:malli/schema [:=> [:cat ScannerErrorSchema] :string]}
-  [{:keys [line message]}]
-  (str "[line " line "] Error: " message))
+(defmethod format-error :scanner-error [{:keys [line message]}] (str "[line " line "] Error: " message))
 
 (defmethod format-error :parser-error
-  {:malli/schema [:=> [:cat ParserErrorSchema] :string]}
   [{:keys [line lexeme token-type message]}]
   (let [where (cond (= token-type :eof) " at end"
                     lexeme (str " at '" lexeme "'")
@@ -52,12 +53,10 @@
     (str "[line " line "] Error" where ": " message)))
 
 (defmethod format-error :analyser-error
-  {:malli/schema [:=> [:cat AnalyserErrorSchema] :string]}
   [{:keys [token message]}]
   (str "[line " (:line token) "] Error at '" (:lexeme token) "': " message))
 
 (defmethod format-error :resolver-error
-  {:malli/schema [:=> [:cat ResolverErrorSchema] :string]}
   [{:keys [token message]}]
   (str "[line " (:line token) "] Error at '" (:lexeme token) "': " message))
 
