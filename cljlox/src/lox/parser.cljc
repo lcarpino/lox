@@ -18,6 +18,7 @@
 (declare parse-statement)
 
 (defn- synchronise
+  {:malli/schema [:=> [:cat ParserStateSchema] ParserStateSchema]}
   [state]
   (loop [s (assoc state :mode :normal)]
     (let [token (first (:tokens s))]
