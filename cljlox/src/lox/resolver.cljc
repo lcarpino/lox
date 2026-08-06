@@ -7,9 +7,20 @@
 
 (def initial-state {:scopes '(), :function-type :none, :class-type :none, :errors []})
 
-(defmulti resolve-expr ^:private (fn [state expr] (:type expr)))
+(def ResolverStateSchema
+  [:map
+   [:scopes [:sequential [:map-of :string :boolean]]]
+   [:function-type [:enum :none :function :method :initialiser]]
+   [:class-type [:enum :none :class :subclass]]
+   [:errors [:sequential error/ResolverErrorSchema]]])
 
-(defmulti resolve-stmt ^:private (fn [state stmt] (:type stmt)))
+(defmulti resolve-expr
+  ^:private {:malli/schema [:=> [:cat ResolverStateSchema ast/ExprSchema] [:tuple ast/ExprSchema ResolverStateSchema]]}
+  (fn [state expr] (:type expr)))
+
+(defmulti resolve-stmt
+  ^:private {:malli/schema [:=> [:cat ResolverStateSchema ast/StmtSchema] [:tuple ast/StmtSchema ResolverStateSchema]]}
+  (fn [state stmt] (:type stmt)))
 
 
 (defn- declare-var
@@ -234,4 +245,7 @@
 
 (defmethod resolve-stmt :default [state stmt] [stmt state])
 
-(defn resolve [statements] (resolve-statements initial-state statements))
+(defn resolve
+  {:malli/schema [:=> [:cat [:sequential ast/StmtSchema]] [:tuple [:sequential ast/StmtSchema] ResolverStateSchema]]}
+  [statements]
+  (resolve-statements initial-state statements))
