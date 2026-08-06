@@ -72,3 +72,29 @@ java_test(
         "--suite", "jlox",
     ],
 )
+
+clojure_library(
+    name = "cljlox_test_lib",
+    resources = [
+        "test/lox/scanner_test.cljc",
+        "test/lox/parser_test.cljc",
+    ],
+    resource_strip_prefix = "cljlox/test",
+    deps = [
+        ":cljlox_lib",
+        "@test_deps//:metosin_malli",
+        "@test_deps//:org_clojure_test_check",
+    ],
+)
+
+java_test(
+    name = "unit_tests",
+    main_class = "clojure.main",
+    args = ["-m", "kaocha.runner"],
+    use_testrunner = False,
+    runtime_deps = [
+        ":cljlox_test_lib",
+        "@test_deps//:org_clojure_clojure",
+        "@test_deps//:lambdaisland_kaocha",
+    ],
+)

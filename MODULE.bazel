@@ -24,6 +24,13 @@ deps.install(
 )
 use_repo(deps, "deps")
 
+deps.install(
+    repo_name = "test_deps",
+    deps_edn = "//:deps.edn",
+    aliases = ["test"],
+)
+use_repo(deps, "test_deps")
+
 bazel_dep(name = "rules_graalvm", version = "0.11.1")
 
 gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
