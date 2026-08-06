@@ -16,7 +16,7 @@
 (defn- compile-ast
   [source]
   (let [[tokens scanner-state] (scanner/scan source)
-        [statements parser-state] (parser/parse {:tokens tokens})
+        [statements parser-state] (parser/parse {:tokens tokens, :errors []})
         scanner-errors (:errors scanner-state)
         parser-errors (:errors parser-state)]
     (report-errors! scanner-errors)
