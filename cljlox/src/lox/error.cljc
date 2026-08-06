@@ -64,6 +64,14 @@
 ;; Note: we are using structural typing (e.g. `[:map [:errors [:sequential ParserErrorSchema]]]`) rather than requiring
 ;; the full `ParserStateSchema` etc. This enforces strict typing while avoiding circular dependencies. We could avoid
 ;; this by making a dedicated schemas file, but I think it's more sensible to co-locate schemas. We may revisit this.
+
+(defn scanner-error
+  {:malli/schema [:=>
+                  [:cat [:map [:errors [:sequential ScannerErrorSchema]]] :int :string :string]
+                  [:tuple :nil [:map [:errors [:sequential ScannerErrorSchema]]]]]}
+  [state line lexeme message]
+  [nil (update state :errors (fnil conj []) {:type :scanner-error, :line line, :lexeme lexeme, :message message})])
+
 (defn parser-error
   {:malli/schema [:=>
                   [:cat [:map [:errors [:sequential ParserErrorSchema]]] TokenSchema :string]
