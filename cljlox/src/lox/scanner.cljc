@@ -1,11 +1,12 @@
 (ns lox.scanner
-  (:require [lox.token :refer [TokenSchema]]))
+  (:require [lox.error :as error]
+            [lox.token :refer [TokenSchema]]))
 
 (def ScannerStateSchema
   [:map
    [:chars [:sequential char?]]
    [:line :int]
-   [:errors {:optional true} [:sequential :any]]])
+   [:errors [:sequential error/ScannerErrorSchema]]])
 
 (def ScannerOutputSchema [:sequential TokenSchema])
 
