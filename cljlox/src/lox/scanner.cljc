@@ -30,11 +30,11 @@
 (def ^:private digit-chars (set "0123456789"))
 (def ^:private alpha-chars (set "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 
-(defn- digit? [c] (contains? digit-chars c))
+(defn- digit? {:malli/schema [:=> [:cat [:maybe char?]] :boolean]} [c] (contains? digit-chars c))
 
-(defn- alpha? [c] (or (contains? alpha-chars c) (= c \_)))
+(defn- alpha? {:malli/schema [:=> [:cat [:maybe char?]] :boolean]} [c] (or (contains? alpha-chars c) (= c \_)))
 
-(defn- alpha-numeric? [c] (or (alpha? c) (digit? c)))
+(defn- alpha-numeric? {:malli/schema [:=> [:cat [:maybe char?]] :boolean]} [c] (or (alpha? c) (digit? c)))
 
 (defn- scan-string
   {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple [:maybe TokenSchema] ScannerStateSchema]]}
