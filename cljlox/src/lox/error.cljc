@@ -34,14 +34,10 @@
    [:token TokenSchema]
    [:message :string]])
 
+(def ErrorSchema
+  [:or ScannerErrorSchema ParserErrorSchema AnalyserErrorSchema ResolverErrorSchema EvaluatorErrorSchema])
 
-
-(defmulti format-error
-  {:malli/schema
-   [:=>
-    [:cat [:or ScannerErrorSchema ParserErrorSchema AnalyserErrorSchema ResolverErrorSchema EvaluatorErrorSchema]]
-    :string]}
-  :type)
+(defmulti format-error {:malli/schema [:=> [:cat ErrorSchema] :string]} :type)
 
 (defmethod format-error :scanner-error [{:keys [line message]}] (str "[line " line "] Error: " message))
 

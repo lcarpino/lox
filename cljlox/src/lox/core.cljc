@@ -4,9 +4,12 @@
             [lox.evaluator :as evaluator]
             [lox.parser :as parser]
             [lox.scanner :as scanner]
-            [lox.resolver :as resolver]))
+            [lox.resolver :as resolver]
+            [lox.ast :as ast]
+            [lox.environment :as environment]))
 
 (defn- report-errors!
+  {:malli/schema [:=> [:cat [:sequential error/ErrorSchema]] :nil]}
   [errors]
   (when (seq errors)
     (binding [#?@(:clj [*out* *err*]
@@ -14,6 +17,7 @@
       (doseq [err errors] (println (error/format-error err))))))
 
 (defn- compile-ast
+  {:malli/schema [:=> [:cat :string] [:maybe [:sequential ast/StmtSchema]]]}
   [source]
   (let [[tokens scanner-state] (scanner/scan source)
         [statements parser-state] (parser/parse {:tokens tokens, :errors []})
@@ -34,6 +38,7 @@
             (if (seq resolver-errors) nil resolved)))))))
 
 (defn execute
+  {:malli/schema [:=> [:cat :string environment/EnvSchema] [:map [:env environment/EnvSchema] [:exit-code :int]]]}
   [source env]
   (if-let [ast (compile-ast source)]
     (try (loop [current-env env
