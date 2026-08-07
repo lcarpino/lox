@@ -16,14 +16,14 @@ chain of the full `jlox` interpreter. This is essentially the exact implementati
 Discover all the possible build targets.
 
 ```bash
-bazel query ...
-bazel query //jlox/...
+bazelisk query ...
+bazelisk query //jlox/...
 ```
 
 Build the interpreter as a standalone jar that can be used for running the test suite or deployed elsewhere.
 
 ```bash
-bazel run //jlox/com/craftinginterpreters/lox:lox_deploy.jar
+bazelisk run //jlox/com/craftinginterpreters/lox:lox_deploy.jar
 ```
 
 Run the lox tree walking interpreter directly, this will default to interactive mode. **Note**: `bazel` runs in a
@@ -32,24 +32,24 @@ exception. On Linux generally it is sufficient to just wrap the path with `$(rea
 the input.
 
 ```bash
-bazel run //jlox/com/craftinginterpreters/lox:lox
+bazelisk run //jlox/com/craftinginterpreters/lox:lox
 ```
 
 Whilst the above will work just fine, the experience is much better when using `rlwrap` to provide readline
 functionality
 
 ```bash
-rlwrap bazel run //jlox/com/craftinginterpreters/lox:lox
+rlwrap bazelisk run //jlox/com/craftinginterpreters/lox:lox
 ```
 Run a demo program
 
 ```bash
-bazel run //jlox/com/craftinginterpreters/lox:lox $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
+bazelisk run //jlox/com/craftinginterpreters/lox:lox $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
 ```
 
 Generate `Expr.java` and `Stmt.java`, this is useful for development so that the LSP correctly picks up the variables.
 ```bash
-bazel run //jlox/com/craftinginterpreters/tool:generate_ast $(git rev-parse --show-toplevel)/jlox/com/craftinginterpreters/lox
+bazelisk run //jlox/com/craftinginterpreters/tool:generate_ast $(git rev-parse --show-toplevel)/jlox/com/craftinginterpreters/lox
 ```
 
 ## cljlox
@@ -93,13 +93,19 @@ Build the interpreter as a standalone jar file which can be used with a standard
 clj -T:build uber
 ```
 
+### Building `cljlox` with `bazel`
+
+```bash
+bazelisk build //cljlox:cljlox
+```
+
 Run a demo program.
 
 ```bash
 clj -M:run $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
 ```
 
-### Building `cljlox` as a native application using `GraalVM`
+### Building `cljlox` as a native application using `bazel` and `GraalVM`
 
 Using GraalVM is arguably a little bit overkill for this project. But, given that, for relatively short running Lox
  programs the wall-clock time is dominated by JVM startup and optimising `clojure.core` bytecode, compiling the
@@ -107,15 +113,13 @@ Using GraalVM is arguably a little bit overkill for this project. But, given tha
  entire Lox test suite run and pass in only a few seconds that is very satisfying.
 
 ```bash
-clj -T:build uber \
-&& mkdir -p $(git rev-parse --show-toplevel)/target/graalvm \
-&& native-image \
-  -jar target/cljlox.jar \
-  --no-fallback \
-  --initialize-at-build-time \
-  -H:Name=cljlox \
-  -o target/graalvm/cljlox
+bazelisk build //cljlox:cljlox_native
 ```
+
+## cljslox
+
+`cljslox` almost comes for free with our implementation of `cljlox`, this is a JavaScript version of the interpreter
+which is neat because we can easily turn the entire interpreter into a web app.
 
 ## Running the official Lox test suite
 
@@ -133,4 +137,14 @@ dart pub get -C craftinginterpreters/tool/
 
 ```bash
 (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljlox.sh)
+```
+
+Unfortunately the version of dart required to run the official test suite is not supported by `rules_dart` which
+provides the `dart` module to `bazel`. To circumvent this and to enable the complete test suite to be orchestrated from
+`bazel` we have written our own test harness in `clojure`. It should produce the same results as the official test
+harness, and to ensure it does both test suites are run as part of CI.
+
+To run the complete test suite through `bazel`
+```bash
+bazelisk test //...
 ```
