@@ -56,3 +56,13 @@ jobs:
           submodules: true
       - name: Run cljlox Bazel tests
         run: bazelisk test //cljlox:cljlox_test
+
+  unit-test-bazel:
+    name: Unit test cljlox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Run cljlox Bazel unit tests
+        run: bazelisk test //cljlox:unit_tests
