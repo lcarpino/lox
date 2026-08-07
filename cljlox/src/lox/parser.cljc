@@ -6,7 +6,7 @@
 (def ParserStateSchema
   [:map
    [:tokens [:sequential TokenSchema]]
-   [:errors {:optional true} [:sequential :any]]
+   [:errors [:sequential error/ParserErrorSchema]]
    [:mode {:optional true} [:enum :normal :recovering]]])
 
 (def ParserFnSchema [:=> [:cat ParserStateSchema] [:tuple ast/ExprSchema ParserStateSchema]])
@@ -18,6 +18,7 @@
 (declare parse-statement)
 
 (defn- synchronise
+  {:malli/schema [:=> [:cat ParserStateSchema] ParserStateSchema]}
   [state]
   (loop [s (assoc state :mode :normal)]
     (let [token (first (:tokens s))]
@@ -364,7 +365,7 @@
           (error/parser-error state lparen (str "Expect '(' after " (name kind) " name."))
           (let [state (assoc state :tokens (rest (:tokens state)))]
             (if (= (:type (first (:tokens state))) :rparen)
-              (let [rparen (first (:tokens state))
+              (let [_rparen (first (:tokens state))
                     state (assoc state :tokens (rest (:tokens state)))
                     lbrace (first (:tokens state))]
                 (if-not (= (:type lbrace) :lbrace)

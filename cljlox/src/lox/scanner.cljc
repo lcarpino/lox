@@ -1,11 +1,12 @@
 (ns lox.scanner
-  (:require [lox.token :refer [TokenSchema]]))
+  (:require [lox.error :as error]
+            [lox.token :refer [TokenSchema]]))
 
 (def ScannerStateSchema
   [:map
    [:chars [:sequential char?]]
    [:line :int]
-   [:errors {:optional true} [:sequential :any]]])
+   [:errors [:sequential error/ScannerErrorSchema]]])
 
 (def ScannerOutputSchema [:sequential TokenSchema])
 
@@ -30,11 +31,11 @@
 (def ^:private digit-chars (set "0123456789"))
 (def ^:private alpha-chars (set "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 
-(defn- digit? [c] (contains? digit-chars c))
+(defn- digit? {:malli/schema [:=> [:cat [:maybe char?]] :boolean]} [c] (contains? digit-chars c))
 
-(defn- alpha? [c] (or (contains? alpha-chars c) (= c \_)))
+(defn- alpha? {:malli/schema [:=> [:cat [:maybe char?]] :boolean]} [c] (or (contains? alpha-chars c) (= c \_)))
 
-(defn- alpha-numeric? [c] (or (alpha? c) (digit? c)))
+(defn- alpha-numeric? {:malli/schema [:=> [:cat [:maybe char?]] :boolean]} [c] (or (alpha? c) (digit? c)))
 
 (defn- scan-string
   {:malli/schema [:=> [:cat ScannerStateSchema] [:tuple [:maybe TokenSchema] ScannerStateSchema]]}
@@ -42,15 +43,8 @@
   (loop [state (update initial-state :chars rest)
          acc []]
     (let [c (first (:chars state))]
-      (cond (nil? c)
-            (let [lexeme (apply str acc)]
-              [nil
-               (-> state
-                   (assoc :chars '())
-                   (update
-                    :errors
-                    (fnil conj [])
-                    {:type :scanner-error, :line (:line state), :lexeme lexeme, :message "Unterminated string."}))])
+      (cond (nil? c) (let [lexeme (apply str acc)]
+                       (error/scanner-error (assoc state :chars '()) (:line state) lexeme "Unterminated string."))
             (= c \") (let [lexeme (apply str acc)]
                        [{:type :string, :lexeme (str "\"" lexeme "\""), :literal lexeme, :line (:line state)}
                         (update state :chars rest)])
@@ -136,13 +130,7 @@
           (alpha? c) (scan-identifier state)
           (digit? c) (scan-number state)
           ;; --- fallback ---
-          :else [nil
-                 (-> state
-                     (update :chars rest)
-                     (update
-                      :errors
-                      (fnil conj [])
-                      {:type :scanner-error, :line line, :lexeme (str c), :message "Unexpected character."}))])))))
+          :else (error/scanner-error (update state :chars rest) line (str c) "Unexpected character."))))))
 
 (defn scan
   {:malli/schema [:=> [:cat :string] [:tuple ScannerOutputSchema ScannerStateSchema]]}

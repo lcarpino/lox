@@ -27,9 +27,8 @@
 
 (defn main
   [& args]
-  (let [args (js/process.argv.slice 2)
-        arglen (.-length args)]
-    (try (cond (> arglen 1) (do (println "Usage: cljslox [script]") (js/process.exit 64))
-               (= arglen 1) (run-file (aget args 0))
-               :else (run-prompt))
-         (catch js/Error e (println (str "Fatal error: " (.-message e)))))))
+  (try (let [arglen (count args)]
+         (cond (> arglen 1) (do (println "Usage: cljslox [script]") (js/process.exit 64))
+               (= arglen 1) (run-file (first args))
+               :else (run-prompt)))
+       (catch js/Error e (println (str "Fatal error: " (.-message e))))))

@@ -2,25 +2,26 @@
   (:require [lox.ast :as ast]
             [lox.error :as error]))
 
-(def ContextSchema
+(def AnalyserStateSchema
   [:map
    [:function-type [:enum :none :function :method :initialiser]]
    [:class-type [:enum :none :class :subclass]]
-   [:errors {:optional true} [:sequential :any]]])
+   [:errors [:sequential error/AnalyserErrorSchema]]])
 
 (def initial-context
   {:function-type :none,
    :class-type    :none})
 
 (defmulti analyse-expr
-  ^:private {:malli/schema [:=> [:cat ContextSchema ast/ExprSchema] [:tuple :any ContextSchema]]}
-  (fn [context expr] (:type expr)))
+  ^:private {:malli/schema [:=> [:cat AnalyserStateSchema ast/ExprSchema] [:tuple :nil AnalyserStateSchema]]}
+  (fn [_ expr] (:type expr)))
 
 (defmulti analyse-stmt
-  ^:private {:malli/schema [:=> [:cat ContextSchema ast/StmtSchema] [:tuple :any ContextSchema]]}
-  (fn [context stmt] (:type stmt)))
+  ^:private {:malli/schema [:=> [:cat AnalyserStateSchema ast/StmtSchema] [:tuple :nil AnalyserStateSchema]]}
+  (fn [_ stmt] (:type stmt)))
 
 (defn analyse
+  {:malli/schema [:=> [:cat [:sequential ast/StmtSchema]] [:tuple [:sequential ast/StmtSchema] AnalyserStateSchema]]}
   [statements]
   (loop [stmts statements
          ctx (assoc initial-context :errors [])]

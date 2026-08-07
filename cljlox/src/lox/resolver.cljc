@@ -7,9 +7,20 @@
 
 (def initial-state {:scopes '(), :function-type :none, :class-type :none, :errors []})
 
-(defmulti resolve-expr ^:private (fn [state expr] (:type expr)))
+(def ResolverStateSchema
+  [:map
+   [:scopes [:sequential [:map-of :string :boolean]]]
+   [:function-type [:enum :none :function :method :initialiser]]
+   [:class-type [:enum :none :class :subclass]]
+   [:errors [:sequential error/ResolverErrorSchema]]])
 
-(defmulti resolve-stmt ^:private (fn [state stmt] (:type stmt)))
+(defmulti resolve-expr
+  ^:private {:malli/schema [:=> [:cat ResolverStateSchema ast/ExprSchema] [:tuple ast/ExprSchema ResolverStateSchema]]}
+  (fn [_ expr] (:type expr)))
+
+(defmulti resolve-stmt
+  ^:private {:malli/schema [:=> [:cat ResolverStateSchema ast/StmtSchema] [:tuple ast/StmtSchema ResolverStateSchema]]}
+  (fn [_ stmt] (:type stmt)))
 
 
 (defn- declare-var
@@ -159,28 +170,28 @@
         superclass (:superclass stmt)
         [_ state-defined] (if (and superclass (= (:lexeme name-token) (:lexeme (:name superclass))))
                             (error/resolver-error state-defined (:name superclass) "A class can't inherit from itself.")
-                            [nil state-defined])]
-    (let [[resolved-superclass state-super-resolved]
-          (if superclass (resolve-expr state-defined superclass) [nil state-defined])
-          state-with-super
-          (if superclass (update state-super-resolved :scopes #(cons {"super" true} %)) state-super-resolved)
-          state-with-this (-> state-with-super
-                              (assoc :class-type (if superclass :subclass :class))
-                              (update :scopes #(cons {"this" true} %)))
-          [resolved-methods _]
-          (loop [remaining-methods (:methods stmt)
-                 current-state state-with-this
-                 resolved-methods-acc []]
-            (if (empty? remaining-methods)
-              [resolved-methods-acc current-state]
-              (let [method (first remaining-methods)
-                    method-type (if (= "init" (:lexeme (:name method))) :initialiser :method)
-                    [resolved-method ctx-after] (resolve-function-body current-state method method-type)]
-                (recur (rest remaining-methods)
-                       (assoc current-state :errors (:errors ctx-after))
-                       (conj resolved-methods-acc resolved-method)))))]
-      [(assoc stmt :superclass resolved-superclass :methods resolved-methods)
-       (assoc state-super-resolved :class-type saved-class-type :errors (:errors _))])))
+                            [nil state-defined])
+        [resolved-superclass state-super-resolved]
+        (if superclass (resolve-expr state-defined superclass) [nil state-defined])
+        state-with-super
+        (if superclass (update state-super-resolved :scopes #(cons {"super" true} %)) state-super-resolved)
+        state-with-this (-> state-with-super
+                            (assoc :class-type (if superclass :subclass :class))
+                            (update :scopes #(cons {"this" true} %)))
+        [resolved-methods _]
+        (loop [remaining-methods (:methods stmt)
+               current-state state-with-this
+               resolved-methods-acc []]
+          (if (empty? remaining-methods)
+            [resolved-methods-acc current-state]
+            (let [method (first remaining-methods)
+                  method-type (if (= "init" (:lexeme (:name method))) :initialiser :method)
+                  [resolved-method ctx-after] (resolve-function-body current-state method method-type)]
+              (recur (rest remaining-methods)
+                     (assoc current-state :errors (:errors ctx-after))
+                     (conj resolved-methods-acc resolved-method)))))]
+    [(assoc stmt :superclass resolved-superclass :methods resolved-methods)
+     (assoc state-super-resolved :class-type saved-class-type :errors (:errors _))]))
 
 (defmethod resolve-stmt :expr
   [state stmt]
@@ -234,4 +245,7 @@
 
 (defmethod resolve-stmt :default [state stmt] [stmt state])
 
-(defn resolve [statements] (resolve-statements initial-state statements))
+(defn resolve
+  {:malli/schema [:=> [:cat [:sequential ast/StmtSchema]] [:tuple [:sequential ast/StmtSchema] ResolverStateSchema]]}
+  [statements]
+  (resolve-statements initial-state statements))

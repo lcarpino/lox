@@ -1,1 +1,2 @@
-{:lint-as {lox.resolver/with-scope clojure.core/let}}
+{:config-paths ["metosin/malli" "metosin/malli-types-clj"]
+ :lint-as {lox.macros/with-scope clojure.core/let}}
