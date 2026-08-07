@@ -1,6 +1,6 @@
 {:paths ["cljlox/src"]
 
- ;; NOTE: currently the versions here must much those used by rules_clojure, otherwise we will encounter issues with
+ ;; NOTE: currently the versions here must match those used by rules_clojure, otherwise we will encounter issues with
  ;; maven not being able to download them. Seems like a bug.
  :deps
  {org.clojure/clojure {:mvn/version "1.12.1"}
@@ -9,7 +9,8 @@
  :aliases
  {:dev
   {:extra-paths ["cljlox/dev" "cljlox/test"]
-   :extra-deps {metosin/malli {:mvn/version "0.20.1"}}}
+   :extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.08.03"}
+                metosin/malli {:mvn/version "0.20.1"}}}
 
   :test
   {:extra-paths ["cljlox/test"]

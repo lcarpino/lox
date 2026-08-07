@@ -1,1 +1,1 @@
-{:lint-as {lox.resolver/with-scope clojure.core/let}}
+{:lint-as {lox.macros/with-scope clojure.core/let}}
