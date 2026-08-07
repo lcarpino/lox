@@ -6,6 +6,7 @@
             [lox.core :as core]))
 
 (defn- run-file
+  {:malli/schema [:=> [:cat :string] :nil]}
   [path]
   (let [file (io/file path)]
     (if (.exists file)
@@ -15,6 +16,7 @@
       (println "File not found: " path))))
 
 (defn- run-prompt
+  {:malli/schema [:=> [:cat] :nil]}
   []
   (memory/empty-store!)
   (loop [env (native/create-global-env)]
@@ -23,6 +25,7 @@
     (when-some [line (read-line)] (let [{:keys [env]} (core/execute line env)] (recur env)))))
 
 (defn -main
+  {:malli/schema [:=> [:cat [:* :string]] :nil]}
   [& args]
   (try (let [arglen (count args)]
          (cond (> arglen 1) (do (println "Usage: cljlox [script]") (System/exit 64))

@@ -1,5 +1,6 @@
 (ns lox.native
-  (:require [lox.memory :as memory]))
+  (:require [lox.memory :as memory]
+            [lox.environment :as environment]))
 
 (def ^:private native-functions
   {"clock" {:type    :native-function,
@@ -11,6 +12,7 @@
   })
 
 (defn create-global-env
+  {:malli/schema [:=> [:cat] environment/EnvSchema]}
   []
   (loop [funcs (seq native-functions)
          env {}]
