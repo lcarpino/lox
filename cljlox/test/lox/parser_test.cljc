@@ -8,9 +8,11 @@
   (testing "Parser handles random token streams without crashing"
     (let [random-token-streams (mg/sample scanner/ScannerOutputSchema {:size 100})]
       (doseq [tokens random-token-streams]
-        (try (parser/parse {:tokens tokens})
+        (try (parser/parse {:tokens tokens, :errors []})
              (is true)
-             (catch Exception e
+             (catch #?(:clj Exception
+                       :cljs js/Error)
+               e
                (let [data (ex-data e)]
                  (is (contains? data :line)
                      (str "Parser threw a JVM exception instead of a syntax error! \n"

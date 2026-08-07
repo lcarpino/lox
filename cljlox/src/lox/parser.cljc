@@ -365,7 +365,7 @@
           (error/parser-error state lparen (str "Expect '(' after " (name kind) " name."))
           (let [state (assoc state :tokens (rest (:tokens state)))]
             (if (= (:type (first (:tokens state))) :rparen)
-              (let [rparen (first (:tokens state))
+              (let [_rparen (first (:tokens state))
                     state (assoc state :tokens (rest (:tokens state)))
                     lbrace (first (:tokens state))]
                 (if-not (= (:type lbrace) :lbrace)

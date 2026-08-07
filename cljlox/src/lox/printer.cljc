@@ -15,7 +15,7 @@
           (string? val) (str "\"" val "\"")
           :else (str val))))
 
-(defmethod print-ast [:lox :literal] [fmt node] (print-ast :sexp node))
+(defmethod print-ast [:lox :literal] [_fmt node] (print-ast :sexp node))
 
 (defmethod print-ast [:sexp :variable] [_ node] (:lexeme (:name node)))
 (defmethod print-ast [:lox :variable] [_ node] (:lexeme (:name node)))

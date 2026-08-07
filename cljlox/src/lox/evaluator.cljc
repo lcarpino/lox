@@ -1,5 +1,6 @@
 (ns lox.evaluator
-  (:require [lox.ast :as ast]
+  (:require #_{:clj-kondo/ignore [:unused-namespace]}
+            [lox.ast :as ast]
             [lox.environment :as environment]
             [lox.error :as error]
             [lox.memory :as memory]))
@@ -33,11 +34,11 @@
 
 (defmulti evaluate
   {:malli/schema [:=> [:cat ast/ExprSchema environment/EnvSchema] memory/ValueSchema]}
-  (fn [expr env] (:type expr)))
+  (fn [expr _] (:type expr)))
 
 (defmulti execute
   {:malli/schema [:=> [:cat ast/StmtSchema environment/EnvSchema] [:or environment/EnvSchema ReturnSchema]]}
-  (fn [stmt env] (:type stmt)))
+  (fn [stmt _] (:type stmt)))
 
 (defn- make-function
   [stmt closure-env]
@@ -70,7 +71,9 @@
 (defn- bind-method
   [method instance]
   (let [env-with-new-scope (cons {} (:closure-env method))
-        bound-env (environment/define env-with-new-scope {:lexeme "this"} instance)]
+        method-name-token (:name (:stmt method))
+        this-token {:type :this, :lexeme "this", :line (:line method-name-token)}
+        bound-env (environment/define env-with-new-scope this-token instance)]
     (make-function (:stmt method) bound-env)))
 
 (defn- find-method
@@ -157,7 +160,7 @@
 
 (defmethod evaluate :grouping [expr env] (evaluate (:expression expr) env))
 
-(defmethod evaluate :literal [expr env] (:value expr))
+(defmethod evaluate :literal [expr _] (:value expr))
 
 (defmethod evaluate :logical
   [expr env]
@@ -182,8 +185,10 @@
 (defmethod evaluate :super
   [expr env]
   (let [distance (:depth expr)
-        superclass (memory/read-store (environment/resolve-address env {:lexeme "super"} distance))
-        instance (memory/read-store (environment/resolve-address env {:lexeme "this"} (dec distance)))
+        super-token (:keyword expr)
+        this-token {:type :this, :lexeme "this", :line (:line super-token)}
+        superclass (memory/read-store (environment/resolve-address env super-token distance))
+        instance (memory/read-store (environment/resolve-address env this-token (dec distance)))
         method-name (:lexeme (:method expr))
         method (find-method superclass method-name)]
     (if method

@@ -71,7 +71,7 @@
         :else (let [stack-lines (rest error-lines)
                     match (some #(re-find stack-trace-pattern %) stack-lines)]
                 (if-not match
-                  (into [(str "Expected stack trace and got:")] stack-lines)
+                  (into ["Expected stack trace and got:"] stack-lines)
                   (let [stack-line (Integer/parseInt (nth match 1))]
                     (if (not= stack-line runtime-error-line)
                       [(str "Expected runtime error on line " runtime-error-line " but was on line " stack-line ".")]

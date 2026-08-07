@@ -14,11 +14,11 @@
 
 (defmulti analyse-expr
   ^:private {:malli/schema [:=> [:cat AnalyserStateSchema ast/ExprSchema] [:tuple :nil AnalyserStateSchema]]}
-  (fn [context expr] (:type expr)))
+  (fn [_ expr] (:type expr)))
 
 (defmulti analyse-stmt
   ^:private {:malli/schema [:=> [:cat AnalyserStateSchema ast/StmtSchema] [:tuple :nil AnalyserStateSchema]]}
-  (fn [context stmt] (:type stmt)))
+  (fn [_ stmt] (:type stmt)))
 
 (defn analyse
   {:malli/schema [:=> [:cat [:sequential ast/StmtSchema]] [:tuple [:sequential ast/StmtSchema] AnalyserStateSchema]]}
