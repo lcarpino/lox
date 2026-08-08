@@ -1,8 +1,9 @@
 # Lox
 
-This is a mono-repo for my implementations of the Lox programming language, following the wonderful Crafting
-Interpreters book by Bob Nystrom. So far it includes two versions of the tree-walking interpreter, a faithful
-implementation of the official Java version in the book and a more functionally pure implementation in Clojure.
+This is a mono-repo for my implementations of the Lox programming language, following the wonderful [Crafting
+Interpreters](https://craftinginterpreters.com/) book by [Bob Nystrom](https://stuffwithstuff.com/). So far it includes
+two versions of the tree-walking interpreter, a faithful implementation of the official Java version in the book and a
+more functionally pure implementation in Clojure.
 
 ## jlox
 
@@ -139,10 +140,11 @@ dart pub get -C craftinginterpreters/tool/
 (cd craftinginterpreters && dart tool/bin/test.dart jlox --interpreter ../scripts/cljlox.sh)
 ```
 
-Unfortunately the version of dart required to run the official test suite is not supported by `rules_dart` which
-provides the `dart` module to `bazel`. To circumvent this and to enable the complete test suite to be orchestrated from
-`bazel` we have written our own test harness in `clojure`. It should produce the same results as the official test
-harness, and to ensure it does both test suites are run as part of CI.
+Unfortunately the version of dart required to run the official test suite is not supported by
+[`rules_dart`](https://github.com/aran/rules_dart) which provides the `dart` module to `bazel`. To circumvent this and
+to enable the complete test suite to be orchestrated from `bazel` we have written our own test harness in `clojure`. It
+should produce the same results as the official test harness, and to ensure it does both test suites are run as part of
+CI.
 
 To run the complete test suite through `bazel`
 ```bash
