@@ -5,6 +5,27 @@ Interpreters](https://craftinginterpreters.com/) book by [Bob Nystrom](https://s
 two versions of the tree-walking interpreter, a faithful implementation of the official Java version in the book and a
 more functionally pure implementation in Clojure.
 
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+- [Lox](#lox)
+  - [Prerequisites](#prerequisites)
+  - [jlox](#jlox)
+    - [Building `jlox` with `bazel`](#building-jlox-with-bazel)
+  - [cljlox](#cljlox)
+    - [Prerequisites](#prerequisites-1)
+    - [Building `cljlox` with `deps.edn`](#building-cljlox-with-depsedn)
+    - [Building `cljlox` with `bazel`](#building-cljlox-with-bazel)
+    - [Building `cljlox` as a native application using `bazel` and `GraalVM`](#building-cljlox-as-a-native-application-using-bazel-and-graalvm)
+  - [cljslox](#cljslox)
+    - [Prerequisites](#prerequisites-2)
+    - [Build `cljslox` for `node.js`](#build-cljslox-for-nodejs)
+    - [Build `cljslox` for the web](#build-cljslox-for-the-web)
+  - [Running the official Lox test suite](#running-the-official-lox-test-suite)
+
+<!-- markdown-toc end -->
+
+
 ## Prerequisites
 
 This repository uses `bazel` as the primary build system. I highly recommend installing
