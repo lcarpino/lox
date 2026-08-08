@@ -67,7 +67,7 @@ tools](https://github.com/clojure/brew-install) for managing and building `cljlo
 To build and run `cljlox`, you must have Clojure tools installed. On Linux, you can install it using:
 
 ```bash
-curl -L -O https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh && chmod +x linux-install.sh && sudo ./linux-install.sh && rm linux-install.sh
+curl -fsSL https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh | sudo bash
 ```
 
 Major changes compared to `jlox`:
