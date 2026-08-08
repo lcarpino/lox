@@ -57,10 +57,11 @@ bazelisk run //jlox/com/craftinginterpreters/tool:generate_ast $(git rev-parse -
 
 `cljlox` is a complete implementation of `Lox` language that passes all of the test suite, but written in a completely
 different paradigm to `jlox`. `cljlox` completely eschews mutation, adopting a data-flow style of programming where all
-of the functions are completely pure and we make sure of plan data structures rather than objects. Note that, because
+of the functions are completely pure and we make sure of plain data structures rather than objects. Note that, because
 `Lox` itself is a language that makes heavy use of mutation we have to make one concession to impurity in our memory
-store so that it is possible to mutate values pointed to by references. We use `deps.edn` [Clojure
-tools](https://github.com/clojure/brew-install) for managing and building `cljlox`.
+store so that it is possible to mutate values pointed to by references. We use `deps.edn` and [clojure
+tools](https://github.com/clojure/brew-install) to enable the usual clojure development experience whist providing bazel
+targets as well.
 
 ### Prerequisites
 
@@ -94,16 +95,28 @@ Build the interpreter as a standalone jar file which can be used with a standard
 clj -T:build uber
 ```
 
+Run a demo program using the generated uberjar
+
+```bash
+java -jar target/jvm/cljlox.jar
+```
+
+Or run directly using clojure tools
+
+```bash
+clj -M:run $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
+```
+
 ### Building `cljlox` with `bazel`
+
+We can build `cljlox` in the same way as `jlox` using `bazel`.
 
 ```bash
 bazelisk build //cljlox:cljlox
 ```
 
-Run a demo program.
-
 ```bash
-clj -M:run $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
+bazelisk run //cljlox:cljlox $(git rev-parse --show-toplevel)/demo/project-euler/problem-0001.lox
 ```
 
 ### Building `cljlox` as a native application using `bazel` and `GraalVM`
@@ -121,6 +134,8 @@ bazelisk build //cljlox:cljlox_native
 
 `cljslox` almost comes for free with our implementation of `cljlox`, this is a JavaScript version of the interpreter
 which is neat because we can easily turn the entire interpreter into a web app.
+
+### Prerequisites
 
 ## Running the official Lox test suite
 
