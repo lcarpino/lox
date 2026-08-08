@@ -5,6 +5,12 @@ Interpreters](https://craftinginterpreters.com/) book by [Bob Nystrom](https://s
 two versions of the tree-walking interpreter, a faithful implementation of the official Java version in the book and a
 more functionally pure implementation in Clojure.
 
+## Prerequisites
+
+This repository uses `bazel` as the primary build system. I highly recommend installing
+[`bazelisk`](https://github.com/bazelbuild/bazelisk#installation) to ensure that a compatible version of `bazel` is
+available and selected for use.
+
 ## jlox
 
 My implementation of `jlox` makes use of `bazel` as the build system, which must be installed before `jlox` can be
@@ -65,7 +71,8 @@ targets as well.
 
 ### Prerequisites
 
-To build and run `cljlox`, you must have Clojure tools installed. On Linux, you can install it using:
+To build and run `cljlox`, you only need `bazelisk`, but for development purposes, or the more usual clojure tooling
+experience, you must have clojure tools installed. On Linux, you can install it using:
 
 ```bash
 curl -fsSL https://github.com/clojure/brew-install/releases/latest/download/linux-install.sh | sudo bash
@@ -76,8 +83,8 @@ Major changes compared to `jlox`:
 - Removed the use of exceptions for parser synchronisation and return statements, instead all of this is handled
   explicitly as part of the current state and threaded through all of the call stack.
 - Replaced the visitor pattern with multimethods.
-- All state is held in as plain data using Clojure nested maps. We define explicit schemas using Malli to make sure that
-  data remains in a valid state as it is passed through our interpreter.
+- All state is held as plain old data using Clojure nested maps. We define explicit schemas using Malli to make sure
+  that data remains in a valid state as it is passed through our interpreter.
 - Separated the `jlox` resolver into a separate analyser and resolver. This makes the interpreter more explicit at the
   cost of having to walk the tree an extra time on each pass.
 - We are using a manual memory model where we have immutable addresses that point to mutable memory locations. For
@@ -136,6 +143,21 @@ bazelisk build //cljlox:cljlox_native
 which is neat because we can easily turn the entire interpreter into a web app.
 
 ### Prerequisites
+
+Currently building `cljslox` is not integrated into `bazel` and instead uses `shadow-cljs` as its build system. This
+requires `node.js` and `npm` to download and manage dependencies.
+
+### Build `cljslox` for `node.js`
+
+```bash
+npx shadow-cljs release node
+```
+
+### Build `cljslox` for the web
+
+```bash
+npx shadow-cljs release web
+```
 
 ## Running the official Lox test suite
 
