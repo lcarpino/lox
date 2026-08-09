@@ -13,6 +13,7 @@
  {:dev
   {:extra-paths ["cljlox/dev" "cljlox/test"]
    :extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.08.03"}
+                com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.8.0"}
                 metosin/malli {:mvn/version "0.20.1"}}}
 
   :test
