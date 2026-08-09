@@ -15,6 +15,12 @@
    :extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.08.03"}
                 metosin/malli {:mvn/version "0.20.1"}}}
 
+  :profile {:alias-deps  [:dev]
+            :extra-deps  {com.clojure-goes-fast/clj-async-profiler {:mvn/version "1.8.0"}}
+            :jvm-opts    ["-Djdk.attach.allowAttachSelf"
+                          "-XX:+UnlockDiagnosticVMOptions"
+                          "-XX:+DebugNonSafepoints"]}
+
   :test
   {:extra-paths ["cljlox/test"]
    :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
