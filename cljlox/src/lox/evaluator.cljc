@@ -42,26 +42,25 @@
 
 (defn- make-function
   [stmt closure-env]
-  (let [is-init? (and (= "init" (:lexeme (:name stmt))) (contains? (peek (:locals closure-env)) "this"))
-        invoke (fn [args caller-env]
-                 (let [base-env {:locals  (conj (:locals closure-env) {}),
-                                 :globals (:globals caller-env)}
-                       env-with-params (loop [env base-env
-                                              params (:params stmt)
-                                              arg-vals args]
-                                         (if (empty? params)
-                                           env
-                                           (recur (environment/define env (first params) (first arg-vals))
-                                                  (rest params)
-                                                  (rest arg-vals))))]
-                   (loop [current-env env-with-params
-                          stmts (:body stmt)]
-                     (if (empty? stmts)
-                       (if is-init? (memory/read-store (get (peek (:locals closure-env)) "this")) nil)
-                       (let [result (execute (first stmts) current-env)]
-                         (if (and (map? result) (= (:type result) :return-value))
-                           (if is-init? (memory/read-store (get (peek (:locals closure-env)) "this")) (:value result))
-                           (recur result (rest stmts))))))))]
+  (let [is-init? (and (= "init" (:lexeme (:name stmt))) (environment/has-local? closure-env "this"))
+        invoke
+        (fn [args caller-env]
+          (let [base-env (environment/with-globals (environment/push-scope closure-env) caller-env)
+                env-with-params
+                (loop [env base-env
+                       params (:params stmt)
+                       arg-vals args]
+                  (if (empty? params)
+                    env
+                    (recur (environment/define env (first params) (first arg-vals)) (rest params) (rest arg-vals))))]
+            (loop [current-env env-with-params
+                   stmts (:body stmt)]
+              (if (empty? stmts)
+                (if is-init? (memory/read-store (environment/get-local-address closure-env "this")) nil)
+                (let [result (execute (first stmts) current-env)]
+                  (if (and (map? result) (= (:type result) :return-value))
+                    (if is-init? (memory/read-store (environment/get-local-address closure-env "this")) (:value result))
+                    (recur result (rest stmts))))))))]
     {:type        :lox-function,
      :arity       (count (:params stmt)),
      :stmt        stmt,
@@ -70,7 +69,7 @@
 
 (defn- bind-method
   [method instance]
-  (let [env-with-new-scope (assoc (:closure-env method) :locals (conj (:locals (:closure-env method)) {}))
+  (let [env-with-new-scope (environment/push-scope (:closure-env method))
         method-name-token (:name (:stmt method))
         this-token {:type :this, :lexeme "this", :line (:line method-name-token)}
         bound-env (environment/define env-with-new-scope this-token instance)]
@@ -215,11 +214,11 @@
 
 (defmethod execute :block
   [stmt env]
-  (let [inner-env (assoc env :locals (conj (:locals env) {}))]
+  (let [inner-env (environment/push-scope env)]
     (loop [current-env inner-env
            remaining-stmts (:statements stmt)]
       (if (empty? remaining-stmts)
-        (assoc current-env :locals (pop (:locals current-env)))
+        (environment/pop-scope current-env)
         (let [s (first remaining-stmts)
               result (execute s current-env)]
           (if (and (map? result) (= (:type result) :return-value)) result (recur result (rest remaining-stmts))))))))
@@ -232,12 +231,11 @@
       (error/evaluator-error (:name superclass-expr) "Superclass must be a class."))
     (let [lexeme (:lexeme (:name stmt))
           address (memory/alloc! nil)
-          locals (:locals env)
-          new-env (if (empty? locals)
-                    (assoc-in env [:globals lexeme] address)
-                    (assoc env :locals (conj (pop locals) (assoc (peek locals) lexeme address))))
+          new-env (environment/bind-local-address env lexeme address)
           closure-env
-          (if superclass (assoc new-env :locals (conj (:locals new-env) {"super" (memory/alloc! superclass)})) new-env)
+          (if superclass
+            (environment/bind-local-address (environment/push-scope new-env) "super" (memory/alloc! superclass))
+            new-env)
           methods (loop [remaining (:methods stmt)
                          acc {}]
                     (if (empty? remaining)
@@ -256,10 +254,7 @@
   [stmt env]
   (let [lexeme (:lexeme (:name stmt))
         address (memory/alloc! nil)
-        locals (:locals env)
-        new-env (if (empty? locals)
-                  (assoc-in env [:globals lexeme] address)
-                  (assoc env :locals (conj (pop locals) (assoc (peek locals) lexeme address))))
+        new-env (environment/bind-local-address env lexeme address)
         func (make-function stmt new-env)]
     (memory/write-store! address func)
     new-env))
