@@ -7,8 +7,6 @@
    [:locals [:sequential [:map-of :string memory/AddressSchema]]]
    [:globals [:map-of :string memory/AddressSchema]]])
 
-(defn empty-env {:malli/schema [:=> [:cat] EnvSchema]} [] {:locals [], :globals {}})
-
 (defn resolve-address
   {:malli/schema [:=> [:cat EnvSchema TokenSchema [:maybe :int]] memory/AddressSchema]}
   [env name-token depth]
