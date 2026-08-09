@@ -174,10 +174,8 @@
   (let [obj (evaluate (:object expr) env)]
     (if (and (map? obj) (= (:type obj) :lox-instance))
       (let [value (evaluate (:value expr) env)
-            name-lexeme (:lexeme (:name expr))
-            current-fields (memory/read-store (:fields-address obj))
-            updated-fields (assoc current-fields name-lexeme value)]
-        (memory/write-store! (:fields-address obj) updated-fields)
+            name-lexeme (:lexeme (:name expr))]
+        (memory/update-store! (:fields-address obj) assoc name-lexeme value)
         value)
       (error/evaluator-error (:name expr) "Only instances have fields."))))
 
