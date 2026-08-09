@@ -17,7 +17,7 @@
   (loop [funcs (seq native-functions)
          env {}]
     (if (empty? funcs)
-      {:locals '(), :globals env}
+      {:locals [], :globals env}
       (let [[name-str func-map] (first funcs)
             address (memory/alloc! func-map)]
         (recur (rest funcs) (assoc env name-str address))))))
