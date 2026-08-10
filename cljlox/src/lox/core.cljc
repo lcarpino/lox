@@ -26,6 +26,7 @@
         (recur (rest funcs) (assoc env name-str address) mem)))))
 
 (defn- report-errors!
+  {:malli/schema [:=> [:cat [:sequential error/ErrorSchema]] :nil]}
   [errors]
   (when (seq errors)
     (binding [#?@(:clj [*out* *err*]
