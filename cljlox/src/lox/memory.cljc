@@ -21,3 +21,8 @@
   {:malli/schema [:=> [:cat AddressSchema ValueSchema] :any]}
   [address new-value]
   (swap! store assoc address new-value))
+
+(defn update-store!
+  {:malli/schema [:=> [:cat AddressSchema [:=> [:cat ValueSchema [:* :any]] ValueSchema] [:* :any]] :any]}
+  [address f & args]
+  (apply swap! store update address f args))
