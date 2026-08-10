@@ -6,10 +6,26 @@
             [lox.scanner :as scanner]
             [lox.resolver :as resolver]
             [lox.ast :as ast]
-            [lox.environment :as environment]))
+            [lox.memory :as memory]
+            [lox.native :as native]))
+
+(defn create-initial-state
+  {:malli/schema [:=> [:cat] evaluator/EvaluatorStateSchema]}
+  []
+  (loop [funcs (seq native/native-functions)
+         env {}
+         mem []]
+    (if (empty? funcs)
+      {:env    {:locals [], :globals env},
+       :mem    mem,
+       :stdout [],
+       :return nil,
+       :error  nil}
+      (let [[name-str func-map] (first funcs)
+            {:keys [address mem]} (memory/alloc mem func-map)]
+        (recur (rest funcs) (assoc env name-str address) mem)))))
 
 (defn- report-errors!
-  {:malli/schema [:=> [:cat [:sequential error/ErrorSchema]] :nil]}
   [errors]
   (when (seq errors)
     (binding [#?@(:clj [*out* *err*]
@@ -38,28 +54,18 @@
             (if (seq resolver-errors) nil resolved)))))))
 
 (defn execute
-  {:malli/schema [:=> [:cat :string environment/EnvSchema] [:map [:env environment/EnvSchema] [:exit-code :int]]]}
-  [source env]
+  {:malli/schema [:=> [:cat :string evaluator/EvaluatorStateSchema] evaluator/EvaluatorStateSchema]}
+  [source state]
   (if-let [ast (compile-ast source)]
-    (try (loop [current-env env
-                remaining-stmts ast]
-           (if (empty? remaining-stmts)
-             {:env current-env}
-             (let [stmt (first remaining-stmts)
-                   result (evaluator/execute stmt current-env)]
-               (recur result (rest remaining-stmts)))))
-         (catch #?(:clj Exception
-                   :cljs js/Error)
-           e
-           (let [data (ex-data e)
-                 err-type (:type data)]
-             (cond (= err-type :evaluator-error) (do (binding [#?@(:clj [*out* *err*]
-                                                                   :cljs [*print-fn* *print-err-fn*])]
-                                                       (println
-                                                        (str (ex-message e) "\n[line " (:line (:token data)) "]")))
-                                                     {:env env, :exit-code 70})
-                   :else (do (binding [#?@(:clj [*out* *err*]
-                                           :cljs [*print-fn* *print-err-fn*])]
-                               (println "System Error: " (ex-message e)))
-                             {:env env, :exit-code 1})))))
-    {:env env, :exit-code 65}))
+    (let [final-state (reduce (fn [current-state stmt]
+                                (if (:error current-state) current-state (evaluator/execute stmt current-state)))
+                              (assoc state :stdout [])
+                              ast)]
+      (doseq [line (:stdout final-state)] (println line))
+      (if-let [err (:error final-state)]
+        (do (binding [#?@(:clj [*out* *err*]
+                          :cljs [*print-fn* *print-err-fn*])]
+              (println (error/format-error err)))
+            (assoc final-state :exit-code 70))
+        (assoc final-state :exit-code nil)))
+    (assoc state :exit-code 65)))

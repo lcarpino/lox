@@ -96,9 +96,11 @@
   [state token message]
   [nil (update state :errors (fnil conj []) {:type :resolver-error, :token token, :message message})])
 
+(defmethod format-error :evaluator-error [{:keys [token message]}] (str message "\n[line " (:line token) "]"))
+
 (defn evaluator-error
-  {:malli/schema [:=> [:cat TokenSchema :string] :nil]}
+  {:malli/schema [:=> [:cat TokenSchema :string] EvaluatorErrorSchema]}
   [token message]
-  (throw (ex-info message
-                  {:type  :evaluator-error,
-                   :token token})))
+  {:type    :evaluator-error,
+   :token   token,
+   :message message})

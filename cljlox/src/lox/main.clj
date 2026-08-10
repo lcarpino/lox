@@ -1,34 +1,27 @@
 (ns lox.main
   (:gen-class)
   (:require [clojure.java.io :as io]
-            [lox.memory :as memory]
-            [lox.native :as native]
             [lox.core :as core]))
 
 (defn- run-file
-  {:malli/schema [:=> [:cat :string] :nil]}
   [path]
   (let [file (io/file path)]
     (if (.exists file)
-      (do (memory/empty-store!)
-          (let [{:keys [exit-code]} (core/execute (slurp file) (native/create-global-env))]
-            (when exit-code (System/exit exit-code))))
+      (let [{:keys [exit-code]} (core/execute (slurp file) (core/create-initial-state))]
+        (when exit-code (System/exit exit-code)))
       (println "File not found: " path))))
 
 (defn- run-prompt
-  {:malli/schema [:=> [:cat] :nil]}
   []
-  (memory/empty-store!)
-  (loop [env (native/create-global-env)]
+  (loop [state (core/create-initial-state)]
     (print "> ")
     (flush)
-    (when-some [line (read-line)] (let [{:keys [env]} (core/execute line env)] (recur env)))))
+    (when-some [line (read-line)] (let [new-state (core/execute line state)] (recur (dissoc new-state :exit-code))))))
 
 (defn -main
-  {:malli/schema [:=> [:cat [:* :string]] :nil]}
   [& args]
   (try (let [arglen (count args)]
          (cond (> arglen 1) (do (println "Usage: cljlox [script]") (System/exit 64))
                (= arglen 1) (run-file (first args))
                :else (run-prompt)))
-       (catch Exception e (println (format "Fatal error: %s" (ex-message e))))))
+       (catch Exception e (println "System Error: " (ex-message e)) (System/exit 1))))
