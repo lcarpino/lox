@@ -4,25 +4,23 @@
 
 (def ValueSchema [:maybe :any])
 
-(def store (atom []))
+(defn alloc
+  {:malli/schema
+   [:=> [:cat [:vector ValueSchema] ValueSchema] [:map [:address AddressSchema] [:mem [:vector ValueSchema]]]]}
+  [mem value]
+  (let [address (count mem)] {:address address, :mem (conj mem value)}))
 
-(defn empty-store! {:malli/schema [:=> [:cat] :any]} [] (reset! store []))
+(defn read-store
+  {:malli/schema [:=> [:cat [:vector ValueSchema] AddressSchema] ValueSchema]}
+  [mem address]
+  (nth mem address))
 
-(defn alloc!
-  {:malli/schema [:=> [:cat ValueSchema] AddressSchema]}
-  [value]
-  (let [address (count @store)]
-    (swap! store conj value)
-    address))
+(defn write-store
+  {:malli/schema [:=> [:cat [:vector ValueSchema] AddressSchema ValueSchema] [:vector ValueSchema]]}
+  [mem address new-value]
+  (assoc mem address new-value))
 
-(defn read-store {:malli/schema [:=> [:cat AddressSchema] ValueSchema]} [address] (nth @store address))
-
-(defn write-store!
-  {:malli/schema [:=> [:cat AddressSchema ValueSchema] :any]}
-  [address new-value]
-  (swap! store assoc address new-value))
-
-(defn update-store!
-  {:malli/schema [:=> [:cat AddressSchema [:=> [:cat ValueSchema [:* :any]] ValueSchema] [:* :any]] :any]}
-  [address f & args]
-  (apply swap! store update address f args))
+(defn update-store
+  {:malli/schema [:=> [:cat [:vector ValueSchema] AddressSchema fn? [:* :any]] [:vector ValueSchema]]}
+  [mem address f & args]
+  (apply update mem address f args))

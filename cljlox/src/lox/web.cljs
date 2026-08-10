@@ -1,10 +1,8 @@
 (ns lox.web
-  (:require [lox.memory :as memory]
-            [lox.native :as native]
-            [lox.core :as core]
+  (:require [lox.core :as core]
             [clojure.string :as str]))
 
-(defonce current-env (atom nil))
+(defonce current-state (atom nil))
 
 (defn- append-output!
   [text is-error?]
@@ -23,11 +21,10 @@
   []
   (clear-output!)
   (let [source (.-value (js/document.getElementById "code-editor"))]
-    (memory/empty-store!)
-    (reset! current-env (native/create-global-env))
+    (reset! current-state (core/create-initial-state))
     (binding [*print-fn* (fn [& args] (append-output! (str/join " " args) false))
               *print-err-fn* (fn [& args] (append-output! (str/join " " args) true))]
-      (swap! current-env (fn [env] (:env (core/execute source env)))))))
+      (swap! current-state (fn [state] (dissoc (core/execute source state) :exit-code))))))
 
 (defn init
   []
